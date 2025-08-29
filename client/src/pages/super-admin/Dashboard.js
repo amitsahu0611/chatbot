@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery } from 'react-query';
+import ChatWidget from '../../components/widget/chat/ChatWidget';
 import {
   BuildingOfficeIcon,
   UsersIcon,
@@ -9,6 +10,8 @@ import {
   ArrowDownIcon,
   ChartBarIcon,
   Cog6ToothIcon,
+  PlayIcon,
+  StopIcon,
 } from '@heroicons/react/24/outline';
 import { Line, Bar } from 'react-chartjs-2';
 import {
@@ -35,6 +38,8 @@ ChartJS.register(
 );
 
 const SuperAdminDashboard = () => {
+  const [showWidget, setShowWidget] = useState(false);
+  
   // Mock data - in real app, this would come from API
   const { data: stats, isLoading } = useQuery('superAdminStats', async () => {
     // Simulate API call
@@ -308,6 +313,93 @@ const SuperAdminDashboard = () => {
           </button>
         </div>
       </div>
+
+      {/* Enhanced Widget Demo */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-gray-900">Enhanced Widget Demo</h3>
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-500">Demo Company ID: 1</span>
+            <button
+              onClick={() => setShowWidget(!showWidget)}
+              className={`flex items-center px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
+                showWidget
+                  ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                  : 'bg-green-100 text-green-700 hover:bg-green-200'
+              }`}
+            >
+              {showWidget ? (
+                <>
+                  <StopIcon className="w-3 h-3 mr-1" />
+                  Hide Demo
+                </>
+              ) : (
+                <>
+                  <PlayIcon className="w-3 h-3 mr-1" />
+                  Show Demo
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+        
+        {showWidget ? (
+          <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg p-6 border-2 border-dashed border-blue-300">
+            <div className="text-center mb-4">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg">
+                <ChatBubbleLeftRightIcon className="w-8 h-8 text-white" />
+              </div>
+              <h4 className="text-lg font-semibold text-gray-900 mb-2">Enhanced Chat Widget Demo</h4>
+              <p className="text-sm text-gray-600 mb-4">
+                Experience the enhanced chat widget that companies can use on their websites.
+              </p>
+              <div className="flex items-center justify-center space-x-4 text-xs text-gray-500">
+                <span className="flex items-center">
+                  <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
+                  Demo Active
+                </span>
+                <span>•</span>
+                <span>Company ID: 1</span>
+                <span>•</span>
+                <span>Widget ID: widget_1_demo</span>
+              </div>
+            </div>
+            
+            <div className="relative bg-white/50 rounded-lg p-4 border border-white/50 backdrop-blur-sm">
+              <div className="text-center text-sm text-gray-600">
+                <p>🎉 Enhanced chat widget demo is now active!</p>
+                <p className="mt-1">Look for the beautiful floating button in the bottom-right corner.</p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-gray-50 rounded-lg p-6 border-2 border-dashed border-gray-300">
+            <div className="text-center">
+              <ChatBubbleLeftRightIcon className="mx-auto h-12 w-12 text-gray-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900">Enhanced Widget Demo</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Click "Show Demo" to experience the enhanced chat widget that companies can use.
+              </p>
+              <div className="mt-6">
+                <button 
+                  onClick={() => setShowWidget(true)}
+                  className="btn-primary"
+                >
+                  Show Widget Demo
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Enhanced Chat Widget */}
+      {showWidget && (
+        <ChatWidget 
+          companyId={1} 
+          widgetId="widget_1_demo" 
+        />
+      )}
     </div>
   );
 };

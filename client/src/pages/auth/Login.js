@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { useAuth } from '../../context/AuthContext';
+import ChatWidget from '../../components/widget/chat/ChatWidget';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 
 const Login = () => {
@@ -226,6 +227,12 @@ const Login = () => {
           </div>
         </form>
       </div>
+
+      {/* Enhanced Chat Widget - Permanent on login page */}
+      <ChatWidget 
+        companyId={13} 
+        widgetId="widget_13_login" 
+      />
     </div>
   );
 };

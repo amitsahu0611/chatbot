@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { BuildingOfficeIcon, EyeIcon, PencilIcon, TrashIcon, PlusIcon } from '@heroicons/react/24/outline';
+import ChatWidget from '../../components/widget/chat/ChatWidget';
+import { BuildingOfficeIcon, EyeIcon, PencilIcon, TrashIcon, PlusIcon, ChatBubbleLeftRightIcon, PlayIcon, StopIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
 const CompaniesManagement = () => {
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCompany, setSelectedCompany] = useState(null);
+  const [showWidget, setShowWidget] = useState(false);
+  const [widgetCompany, setWidgetCompany] = useState(null);
   const { user, setSelectedCompany: setAuthSelectedCompany } = useAuth();
   const navigate = useNavigate();
 
@@ -49,6 +52,12 @@ const CompaniesManagement = () => {
 
   const handleViewCompany = (company) => {
     handleCompanyClick(company);
+  };
+
+  const handlePreviewWidget = (company) => {
+    setWidgetCompany(company);
+    setShowWidget(true);
+    toast.success(`Previewing widget for ${company.name}`);
   };
 
   if (loading) {
@@ -243,6 +252,13 @@ const CompaniesManagement = () => {
                             <EyeIcon className="h-4 w-4" />
                           </button>
                           <button
+                            onClick={() => handlePreviewWidget(company)}
+                            className="text-green-600 hover:text-green-900 p-1"
+                            title="Preview Widget"
+                          >
+                            <ChatBubbleLeftRightIcon className="h-4 w-4" />
+                          </button>
+                          <button
                             className="text-gray-600 hover:text-gray-900 p-1"
                             title="Edit Company"
                           >
@@ -264,6 +280,66 @@ const CompaniesManagement = () => {
           )}
         </div>
       </div>
+
+      {/* Widget Preview Section */}
+      {showWidget && widgetCompany && (
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium text-gray-900">
+              Widget Preview - {widgetCompany.name}
+            </h3>
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-500">Company ID: {widgetCompany.id}</span>
+              <button
+                onClick={() => setShowWidget(false)}
+                className="flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 transition-all duration-200"
+              >
+                <StopIcon className="w-3 h-3 mr-1" />
+                Close Preview
+              </button>
+            </div>
+          </div>
+          
+          <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg p-6 border-2 border-dashed border-blue-300">
+            <div className="text-center mb-4">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg">
+                <ChatBubbleLeftRightIcon className="w-8 h-8 text-white" />
+              </div>
+              <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                {widgetCompany.name} - Enhanced Chat Widget
+              </h4>
+              <p className="text-sm text-gray-600 mb-4">
+                Previewing the enhanced chat widget for this company. Look for the floating button!
+              </p>
+              <div className="flex items-center justify-center space-x-4 text-xs text-gray-500">
+                <span className="flex items-center">
+                  <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
+                  Widget Active
+                </span>
+                <span>•</span>
+                <span>Company: {widgetCompany.name}</span>
+                <span>•</span>
+                <span>Widget ID: widget_{widgetCompany.id}_demo</span>
+              </div>
+            </div>
+            
+            <div className="relative bg-white/50 rounded-lg p-4 border border-white/50 backdrop-blur-sm">
+              <div className="text-center text-sm text-gray-600">
+                <p>🎉 Previewing {widgetCompany.name}'s enhanced chat widget!</p>
+                <p className="mt-1">Look for the beautiful floating button in the bottom-right corner.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Enhanced Chat Widget */}
+      {showWidget && widgetCompany && (
+        <ChatWidget 
+          companyId={widgetCompany.id} 
+          widgetId={`widget_${widgetCompany.id}_demo`} 
+        />
+      )}
     </div>
   );
 };

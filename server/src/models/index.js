@@ -1,6 +1,7 @@
 const User = require('./User');
 const Company = require('./Company');
 const FAQ = require('./company-admin/faq-manager/FAQ');
+const UnansweredQuery = require('./company-admin/faq-manager/UnansweredQuery');
 const SupportSettings = require('./company-admin/support-settings/SupportSettings');
 const Lead = require('./company-admin/lead-viewer/Lead');
 const Form = require('./company-admin/form-builder/Form');
@@ -112,10 +113,32 @@ Lead.hasMany(FormSubmission, {
   as: 'formSubmissions'
 });
 
+// UnansweredQuery associations
+UnansweredQuery.belongsTo(Company, {
+  foreignKey: 'companyId',
+  as: 'company'
+});
+
+UnansweredQuery.belongsTo(FAQ, {
+  foreignKey: 'relatedFaqId',
+  as: 'relatedFaq'
+});
+
+Company.hasMany(UnansweredQuery, {
+  foreignKey: 'companyId',
+  as: 'unansweredQueries'
+});
+
+FAQ.hasMany(UnansweredQuery, {
+  foreignKey: 'relatedFaqId',
+  as: 'relatedQueries'
+});
+
 module.exports = {
   User,
   Company,
   FAQ,
+  UnansweredQuery,
   SupportSettings,
   Lead,
   Form,

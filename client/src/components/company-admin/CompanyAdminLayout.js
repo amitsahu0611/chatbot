@@ -18,6 +18,7 @@ import {
 } from '@heroicons/react/24/outline';
 import CompanyChatbot from '../widget/CompanyChatbot';
 import FixedChatbotIcon from '../widget/FixedChatbotIcon';
+import ChatWidget from '../widget/chat/ChatWidget';
 import toast from 'react-hot-toast';
 
 const CompanyAdminLayout = () => {
@@ -260,6 +261,12 @@ const CompanyAdminLayout = () => {
           onClose={() => setShowChatbot(false)}
         />
       )}
+
+      {/* Enhanced Chat Widget - Permanent throughout company admin */}
+      <ChatWidget 
+        companyId={selectedCompany?.id || user?.companyId || 13} 
+        widgetId={`widget_${selectedCompany?.id || user?.companyId || 13}_permanent`} 
+      />
     </div>
   );
 };

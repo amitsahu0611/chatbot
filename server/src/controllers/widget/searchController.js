@@ -327,12 +327,12 @@ Please provide a helpful answer based on the above FAQ content. If the FAQs cont
 IMPORTANT: If you find any relevant information in the FAQs, use it to provide a helpful response. Only say "I don't have enough information" if there's truly no relevant content in the FAQs at all.`;
 
     const requestBody = {
-      model: "gpt-4o-mini",
+      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      max_tokens: 500,
+      max_tokens: parseInt(process.env.OPENAI_MAX_TOKENS) || 500,
       temperature: 0.3, // Lower temperature for more deterministic responses
       stream: false,
     };

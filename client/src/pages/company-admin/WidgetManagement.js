@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { 
   MagnifyingGlassIcon, 
   SparklesIcon,
@@ -7,14 +8,18 @@ import {
   Cog6ToothIcon,
   EyeIcon,
   ClipboardDocumentIcon,
-  CheckIcon
+  CheckIcon,
+  PlayIcon,
+  StopIcon
 } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 import CompanyChatbot from '../../components/widget/CompanyChatbot';
 import FixedChatbotIcon from '../../components/widget/FixedChatbotIcon';
+import ChatWidget from '../../components/widget/chat/ChatWidget';
 import { API_URL } from '../../utils/config';
 
 const WidgetManagement = () => {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
@@ -23,6 +28,7 @@ const WidgetManagement = () => {
   const [copied, setCopied] = useState(false);
   const [showChatbot, setShowChatbot] = useState(false);
   const [showFixedIcon, setShowFixedIcon] = useState(false);
+  const [showEnhancedWidget, setShowEnhancedWidget] = useState(false);
   const [widgetSettings, setWidgetSettings] = useState({
     theme: 'light',
     position: 'bottom-right',
@@ -166,6 +172,11 @@ const WidgetManagement = () => {
   // Handle preview widget
   const handlePreviewWidget = () => {
     setShowFixedIcon(true);
+  };
+
+  // Handle enhanced widget preview
+  const handlePreviewEnhancedWidget = () => {
+    setShowEnhancedWidget(!showEnhancedWidget);
   };
 
   // Handle test chat
@@ -387,6 +398,26 @@ const WidgetManagement = () => {
 
           <div className="mt-4 flex space-x-2">
             <button 
+              onClick={handlePreviewEnhancedWidget}
+              className={`flex items-center px-3 py-2 rounded-md transition-colors ${
+                showEnhancedWidget 
+                  ? 'bg-red-600 text-white hover:bg-red-700' 
+                  : 'bg-green-600 text-white hover:bg-green-700'
+              }`}
+            >
+              {showEnhancedWidget ? (
+                <>
+                  <StopIcon className="h-4 w-4 mr-1" />
+                  Hide Enhanced Widget
+                </>
+              ) : (
+                <>
+                  <PlayIcon className="h-4 w-4 mr-1" />
+                  Show Enhanced Widget
+                </>
+              )}
+            </button>
+            <button 
               onClick={handlePreviewWidget}
               className="flex items-center px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
             >
@@ -428,6 +459,62 @@ const WidgetManagement = () => {
         </div>
       </div>
 
+      {/* Enhanced Widget Preview Section */}
+      {showEnhancedWidget && (
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center mr-3">
+                <ChatBubbleLeftRightIcon className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Enhanced Widget Preview</h2>
+                <p className="text-sm text-gray-500">Experience your company's enhanced chat widget</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-500">Company ID: {user?.companyId || 'N/A'}</span>
+              <button
+                onClick={handlePreviewEnhancedWidget}
+                className="flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 transition-all duration-200"
+              >
+                <StopIcon className="w-3 h-3 mr-1" />
+                Close Preview
+              </button>
+            </div>
+          </div>
+          
+          <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg p-6 border-2 border-dashed border-blue-300">
+            <div className="text-center mb-4">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg">
+                <ChatBubbleLeftRightIcon className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Enhanced Chat Widget</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Your company's enhanced chatbot widget is now active! Look for the floating button.
+              </p>
+              <div className="flex items-center justify-center space-x-4 text-xs text-gray-500">
+                <span className="flex items-center">
+                  <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
+                  Widget Active
+                </span>
+                <span>•</span>
+                <span>Company ID: {user?.companyId || 'N/A'}</span>
+                <span>•</span>
+                <span>Widget ID: widget_{user?.companyId || 'test'}_demo</span>
+              </div>
+            </div>
+            
+            <div className="relative bg-white/50 rounded-lg p-4 border border-white/50 backdrop-blur-sm">
+              <div className="text-center text-sm text-gray-600">
+                <p>🎉 Your enhanced chat widget is now active!</p>
+                <p className="mt-1">Look for the beautiful floating button in the bottom-right corner.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Fixed Chatbot Icon */}
       <FixedChatbotIcon 
         onClick={handleChatbotOpen}
@@ -440,6 +527,14 @@ const WidgetManagement = () => {
         isVisible={showChatbot}
         onClose={handleChatbotClose}
       />
+
+      {/* Enhanced Chat Widget */}
+      {showEnhancedWidget && (
+        <ChatWidget 
+          companyId={user?.companyId || 13} 
+          widgetId={`widget_${user?.companyId || 13}_demo`} 
+        />
+      )}
     </div>
   );
 };

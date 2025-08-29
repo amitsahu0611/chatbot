@@ -36,6 +36,42 @@ const ChatWidget = ({ companyId, widgetId }) => {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
+  // Save chat history to localStorage
+  const saveChatHistory = (messages, visitorId) => {
+    const finalCompanyId = getValidCompanyId(companyId);
+    localStorage.setItem(`chat_history_${finalCompanyId}_${visitorId}`, JSON.stringify(messages));
+  };
+
+  // Create or update visitor record
+  const createVisitorRecord = async (formData) => {
+    try {
+      const finalCompanyId = getValidCompanyId(companyId);
+      const visitorId = `visitor_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const visitorInfo = {
+        id: visitorId,
+        name: formData.name || formData.fullName || '',
+        email: formData.email || '',
+        phone: formData.phone || '',
+        company: formData.company || '',
+        ip: 'simulated_ip', // In real implementation, this would be the actual IP
+        firstVisit: new Date().toISOString(),
+        lastVisit: new Date().toISOString(),
+        companyId: finalCompanyId
+      };
+
+      // Save visitor info to localStorage
+      localStorage.setItem(`visitor_${finalCompanyId}`, JSON.stringify(visitorInfo));
+      setVisitorInfo(visitorInfo);
+      setIsIPRegistered(true);
+
+      return visitorInfo;
+    } catch (error) {
+      console.error('Error creating visitor record:', error);
+      return null;
+    }
+  };
+
   // Enhanced suggestions with categories
   const suggestionCategories = {
     general: [
@@ -67,8 +103,15 @@ const ChatWidget = ({ companyId, widgetId }) => {
         // Check if visitor info exists in localStorage (simulating IP check)
         const storedVisitorInfo = localStorage.getItem(`visitor_${finalCompanyId}`);
         if (storedVisitorInfo) {
-          setVisitorInfo(JSON.parse(storedVisitorInfo));
+          const visitor = JSON.parse(storedVisitorInfo);
+          setVisitorInfo(visitor);
           setIsIPRegistered(true);
+          
+          // Load previous chat history for returning visitors
+          const chatHistory = localStorage.getItem(`chat_history_${finalCompanyId}_${visitor.id}`);
+          if (chatHistory) {
+            setMessages(JSON.parse(chatHistory));
+          }
         }
 
         // Load company forms
@@ -93,6 +136,7 @@ const ChatWidget = ({ companyId, widgetId }) => {
   useEffect(() => {
     if (isOpen && messages.length === 0) {
       if (!isIPRegistered && companyForms.length > 0) {
+        // For new visitors (fresh IP), automatically show the lead form
         setShowLeadForm(true);
         setMessages([
           {
@@ -132,7 +176,14 @@ const ChatWidget = ({ companyId, widgetId }) => {
       
       const typeNextCharacter = () => {
         if (currentIndex >= typingText.length) {
+          // Update the final message with complete content and no typing indicator
+          setMessages(prev => prev.map(msg => 
+            msg.isTyping 
+              ? { ...msg, content: typingText, isTyping: false }
+              : msg
+          ));
           setIsTyping(false);
+          setTypingText('');
           setIsLoading(false);
           setShowSuggestions(true);
           return;
@@ -140,7 +191,7 @@ const ChatWidget = ({ companyId, widgetId }) => {
         
         setMessages(prev => prev.map(msg => 
           msg.isTyping 
-            ? { ...msg, content: typingText.substring(0, currentIndex + 1) }
+            ? { ...msg, content: typingText.substring(0, currentIndex + 1), isTyping: currentIndex < typingText.length - 1 }
             : msg
         ));
         
@@ -181,15 +232,21 @@ const ChatWidget = ({ companyId, widgetId }) => {
       isTyping: false
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
     setInputValue('');
     setIsLoading(true);
     setShowSuggestions(false);
+    
+    // Save chat history for returning visitors
+    if (visitorInfo?.id) {
+      saveChatHistory(updatedMessages, visitorInfo.id);
+    }
 
     try {
       await createLeadFromChat(content);
 
-      const response = await fetch(`${API_URL}/api/widget/search/ai?query=${encodeURIComponent(content)}&limit=5`, {
+              const response = await fetch(`${API_URL}/api/widget/search/ai/public?query=${encodeURIComponent(content)}&limit=5&companyId=${getValidCompanyId(companyId)}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -211,8 +268,15 @@ const ChatWidget = ({ companyId, widgetId }) => {
           isTyping: true
         };
 
-        setMessages(prev => [...prev, botMessage]);
+        const updatedMessagesWithBot = [...updatedMessages, botMessage];
+        setMessages(updatedMessagesWithBot);
+        
+        // Save chat history with bot message
+        if (visitorInfo?.id) {
+          saveChatHistory(updatedMessagesWithBot, visitorInfo.id);
+        }
 
+        // Start typing animation
         setTimeout(() => {
           setIsTyping(true);
         }, 300);
@@ -231,6 +295,8 @@ const ChatWidget = ({ companyId, widgetId }) => {
       };
       setMessages(prev => [...prev, errorMessage]);
       setIsLoading(false);
+      setIsTyping(false);
+      setTypingText('');
       setShowSuggestions(true);
       showNotificationMessage('Connection error. Please try again.', 'error');
     }
@@ -285,8 +351,6 @@ const ChatWidget = ({ companyId, widgetId }) => {
     setIsSubmittingForm(true);
 
     try {
-      const finalCompanyId = getValidCompanyId(companyId);
-      
       const formResponse = await fetch(`${API_URL}/api/widget/form/submit`, {
         method: 'POST',
         headers: {
@@ -300,24 +364,18 @@ const ChatWidget = ({ companyId, widgetId }) => {
         })
       });
 
-      const formData = await formResponse.json();
+      const formSubmissionData = await formResponse.json();
 
-      if (formData.success) {
-        const extractedInfo = {
-          name: formData.name || formData.formData?.name || null,
-          email: formData.email || formData.formData?.email || null,
-          phone: formData.phone || formData.formData?.phone || null
-        };
-
-        setVisitorInfo(extractedInfo);
-        localStorage.setItem(`visitor_${finalCompanyId}`, JSON.stringify(extractedInfo));
-        setIsIPRegistered(true);
+      if (formSubmissionData.success) {
+        // Create visitor record with form data
+        const visitorInfo = await createVisitorRecord(formSubmissionData);
+        
         setShowLeadForm(false);
 
         const successMessage = {
           id: Date.now(),
           type: 'bot',
-          content: `Thank you${extractedInfo.name ? ` ${extractedInfo.name}` : ''}! 🎉 Your information has been submitted successfully. Now let's start chatting! How can I help you today?`,
+          content: `Thank you${visitorInfo?.name ? ` ${visitorInfo.name}` : ''}! 🎉 Your information has been submitted successfully. Now let's start chatting! How can I help you today?`,
           timestamp: new Date(),
           isTyping: false
         };
@@ -325,7 +383,7 @@ const ChatWidget = ({ companyId, widgetId }) => {
         setMessages(prev => [...prev, successMessage]);
         setSuggestions(suggestionCategories.general);
         setShowSuggestions(true);
-        await createLeadFromChat(`Form submitted: ${extractedInfo.name || 'Anonymous'} - ${extractedInfo.email || 'No email'}`);
+        await createLeadFromChat(`Form submitted: ${visitorInfo?.name || 'Anonymous'} - ${visitorInfo?.email || 'No email'}`);
         showNotificationMessage('Form submitted successfully!', 'success');
 
       } else {

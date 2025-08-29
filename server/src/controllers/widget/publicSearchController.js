@@ -1,6 +1,7 @@
 const { Op } = require('sequelize');
 const { sequelize } = require('../../config/database');
 const FAQ = require('../../models/company-admin/faq-manager/FAQ');
+const UnansweredQuery = require('../../models/company-admin/faq-manager/UnansweredQuery');
 const ChatMessage = require('../../models/widget/ChatMessage');
 const Lead = require('../../models/company-admin/lead-viewer/Lead');
 const logger = require('../../utils/logger');
@@ -188,9 +189,24 @@ const searchFAQs = async (query, companyId, limit) => {
  */
 const generateAIResponse = async (query, faqs) => {
   try {
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    
+    // Debug logging
+    logger.info(`🔑 OpenAI API Key Status: ${OPENAI_API_KEY ? 'Present' : 'Missing'}`);
+    if (OPENAI_API_KEY) {
+      logger.info(`🔑 API Key Length: ${OPENAI_API_KEY.length}`);
+      logger.info(`🔑 API Key Starts with: ${OPENAI_API_KEY.substring(0, 10)}...`);
+    }
+    
+    // Check if OpenAI API key is configured
+    if (!OPENAI_API_KEY || OPENAI_API_KEY === "your-openai-api-key-here" || OPENAI_API_KEY === "your-openai-api-key" || OPENAI_API_KEY.length < 20) {
+      logger.info("⚠️ OpenAI API key not configured, using intelligent fallback response");
+      return generateFallbackResponse(query, faqs);
+    }
+
     const OpenAI = require('openai');
     const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
+      apiKey: OPENAI_API_KEY,
     });
 
     // Prepare FAQ context
@@ -201,58 +217,89 @@ Answer: ${faq.answer}
 Category: ${faq.category}`
     ).join('\n\n');
 
-    const systemPrompt = `You are an intelligent customer support assistant with deep knowledge of the company's services and policies. Your role is to:
+    const systemPrompt = `
+    You are a customer support assistant for this specific company. 
+    
+    CRITICAL RULES:
+    1. ONLY answer based on the provided FAQ information - do not make up services or information
+    2. If the user asks about services and there are no relevant FAQs, say "I don't have specific information about our services in my knowledge base"
+    3. DO NOT assume what services the company offers unless explicitly mentioned in the FAQs
+    4. Be honest about limitations - if you don't have the information, say so
+    5. Only mention services that are actually described in the provided FAQs
+    6. If asked about general questions not covered in FAQs, politely redirect to contact support
+    
+    Response Guidelines:
+    - Answer only what you know from the FAQs provided
+    - Don't invent or assume services not mentioned
+    - Be specific and accurate to the company's actual offerings
+    - If no relevant FAQ exists, admit you don't have that information
+    `;
+    
 
-1. **Analyze Relevance**: Carefully evaluate if the user's question is related to the provided FAQ content
-2. **Provide Direct Answers**: Give clear, direct responses without mentioning "FAQ" or "according to FAQ"
-3. **Be Conversational**: Respond naturally as if you have direct knowledge of the company
-4. **Acknowledge Limitations**: If the question is outside your scope, simply dont give any single information what he is asking just say i dont have information about it.
+    const userPrompt = (query, faqs) => `
+    User Question: "${query}"
+    
+    Company's FAQ Knowledge Base:
+    ${faqs.length > 0 ? faqs.map((f,i)=>`Q${i+1}: ${f.question}\nA: ${f.answer}`).join("\n\n") : "No relevant FAQs found for this query."}
+    
+    Instructions:
+    - If the question directly matches an FAQ, provide that information naturally
+    - If asking about services and NO service-related FAQs exist, say "I don't have specific information about our services. Please contact our support team for detailed service information."
+    - DO NOT make assumptions about what services might be offered
+    - Only reference information that exists in the FAQs above
+    - If no relevant FAQ exists, be honest and suggest contacting support
+    - Be helpful but accurate - don't invent information
+    `;
+    
 
-**Response Guidelines:**
-- **Direct Answers**: Provide clear, helpful responses without referencing FAQ sources
-- **Natural Language**: Speak as if you have direct knowledge of the company's services
-- **Comprehensive**: Use both provided information and your knowledge to give complete answers
-- **Professional**: Maintain a friendly, helpful tone
-- **Redirect Gracefully**: If questions are unrelated, direct no and say contact support for the rest
-- **Restrictive Information**: Do NOT provide any information about refunds, privacy policies, amounts, pricing, or any financial details unless explicitly mentioned in the provided FAQs
-- **Conservative Approach**: Only provide information that is clearly stated in the FAQs - do not make assumptions or provide general knowledge
-
-**Important**: Never say "According to FAQ" or "Based on FAQ" - give direct, confident answers as if you're a knowledgeable company representative.`;
-
-         const userPrompt = `**User Question:** "${query}"
-
-**Company Information Available:**
-${faqContext}
-
-**Your Task:**
-1. Analyze if this question relates to the company's services or policies
-2. Provide a direct, helpful answer using the available information and your knowledge
-3. If the question is partially related, give what information you can and suggest additional help
-4. If completely unrelated, politely redirect to relevant topics or contact methods simply dont give any single information what he is asking just say i dont have information about it.
-5. Do NOT provide any information about refunds, privacy policies, amounts, pricing, or financial details unless explicitly mentioned in the FAQs
-
-**Response Style:**
-- Give direct, confident answers as a knowledgeable company representative
-- Don't mention "FAQ" or "according to FAQ" - speak naturally
-- Be helpful and conversational
-- If you don't have specific information, say so clearly i dont have answer for this question and suggest alternatives
-- Be conservative - only provide information that is clearly stated in the FAQs`;
 
     const chatCompletion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
+        { role: "user", content: userPrompt(query, faqs) }
       ],
-      max_tokens: 800,
+      max_tokens: parseInt(process.env.OPENAI_MAX_TOKENS) || 800,
       temperature: 0.7,
     });
 
     return chatCompletion.choices[0].message.content.trim();
   } catch (error) {
     logger.error('OpenAI API error:', error);
-    throw new Error('Failed to generate AI response');
+    logger.info("🔄 Falling back to intelligent response system");
+    return generateFallbackResponse(query, faqs);
   }
+};
+
+// Intelligent fallback response system
+const generateFallbackResponse = (query, faqs) => {
+  const queryLower = query.toLowerCase();
+  
+  // If we have relevant FAQs, use them to generate a response
+  if (faqs.length > 0) {
+    const bestMatch = faqs[0];
+    return `Based on our information, here's what I found:\n\n**${bestMatch.question}**\n\n${bestMatch.answer}\n\nIf this doesn't fully answer your question, please let me know and I'll be happy to help further or connect you with our support team!`;
+  }
+  
+  // Handle common questions with predefined responses
+  if (queryLower.includes('service') || queryLower.includes('offer')) {
+    return "I don't have specific information about our services in my current knowledge base. For detailed information about what services we offer, please contact our support team directly. They'll be happy to provide you with comprehensive details about our offerings!";
+  }
+  
+  if (queryLower.includes('contact') || queryLower.includes('support') || queryLower.includes('help')) {
+    return "I'm here to help! For immediate assistance, you can reach our support team through our contact form, email, or phone. Our team is available during business hours and will get back to you as soon as possible. Is there something specific I can help you with?";
+  }
+  
+  if (queryLower.includes('price') || queryLower.includes('cost') || queryLower.includes('pricing')) {
+    return "Our pricing varies depending on your specific needs and requirements. To get accurate pricing information, I'd recommend contacting our sales team directly. They can provide you with a customized quote based on your situation. Would you like me to help you get in touch with them?";
+  }
+  
+  if (queryLower.includes('hour') || queryLower.includes('time') || queryLower.includes('when')) {
+    return "Our business hours are typically Monday through Friday, 9 AM to 6 PM. However, specific hours may vary by department. For the most accurate information, please check our website or contact us directly. We're here to help whenever you need us!";
+  }
+  
+  // Default response
+  return "Thank you for your question! I'm here to help, but I might need to connect you with our support team for the most accurate and up-to-date information. They'll be happy to assist you with any specific questions you have. Is there anything else I can help you with?";
 };
 
 /**
@@ -274,6 +321,55 @@ const getClientIP = (req) => {
 const generateSessionId = (ipAddress, companyId) => {
   const timestamp = Date.now();
   return `${ipAddress}_${companyId}_${timestamp}`;
+};
+
+/**
+ * Store unanswered query for admin review
+ */
+const storeUnansweredQuery = async (query, companyId, ipAddress, userAgent, sessionId) => {
+  try {
+    logger.info(`📝 Storing unanswered query for company ${companyId}: "${query}"`);
+    
+    const unansweredQuery = await UnansweredQuery.findOrCreateQuery({
+      companyId: parseInt(companyId),
+      query: query.trim(),
+      ipAddress: ipAddress,
+      userAgent: userAgent,
+      sessionId: sessionId
+    });
+    
+    logger.info(`✅ Unanswered query stored with ID: ${unansweredQuery.id}, frequency: ${unansweredQuery.frequency}`);
+    return unansweredQuery;
+  } catch (error) {
+    logger.error('Error storing unanswered query:', error);
+    // Don't fail the request if storage fails
+    return null;
+  }
+};
+
+/**
+ * Check if response indicates lack of knowledge
+ */
+const isLowQualityResponse = (response, faqs) => {
+  const lowerResponse = response.toLowerCase();
+  
+  // If no FAQs were found, consider it low quality
+  if (faqs.length === 0) return true;
+  
+  // Check for common "I don't know" phrases
+  const unknownPhrases = [
+    "don't have specific information",
+    "don't have information",
+    "contact our support",
+    "contact support",
+    "i don't have",
+    "not in my knowledge",
+    "please contact",
+    "i'm not sure",
+    "i don't know"
+  ];
+  
+  return unknownPhrases.some(phrase => lowerResponse.includes(phrase));
 };
 
 /**
@@ -345,11 +441,30 @@ const publicAiSearch = async (req, res) => {
 
     // Generate AI response
     let aiResponse;
+    let isUnanswered = false;
     try {
       aiResponse = await generateAIResponse(query, relevantFAQs);
+      
+      // Check if the response indicates lack of knowledge
+      if (isLowQualityResponse(aiResponse, relevantFAQs)) {
+        isUnanswered = true;
+        logger.info(`🔍 Low quality response detected for query: "${query}"`);
+      }
     } catch (aiError) {
       logger.error('AI response generation failed:', aiError);
       aiResponse = "I'm sorry, I'm having trouble processing your request right now. Please try again in a moment.";
+      isUnanswered = true;
+    }
+
+    // Store unanswered query if response is inadequate
+    if (isUnanswered) {
+      await storeUnansweredQuery(
+        query,
+        companyId,
+        clientIP,
+        req.headers['user-agent'],
+        sessionId
+      );
     }
 
     // Store bot message

@@ -6,10 +6,13 @@ import {
   MagnifyingGlassIcon,
   ChartBarIcon,
   EyeIcon,
-  Bars3Icon
+  Bars3Icon,
+  ChatBubbleLeftRightIcon,
+  ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import UnansweredQueries from '../../components/company-admin/faq-manager/UnansweredQueries';
 
 const FAQManager = () => {
   const { getCurrentCompanyId } = useAuth();
@@ -21,6 +24,7 @@ const FAQManager = () => {
   const [stats, setStats] = useState({});
   const [categories, setCategories] = useState([]);
   const [selectedFAQs, setSelectedFAQs] = useState([]);
+  const [showUnansweredQueries, setShowUnansweredQueries] = useState(false);
   
   // Filters
   const [filters, setFilters] = useState({
@@ -458,13 +462,25 @@ const FAQManager = () => {
             Create and manage FAQ articles for your chatbot
           </p>
         </div>
-        <button
-          onClick={handleCreateFAQ}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
-        >
-          <PlusIcon className="h-4 w-4 mr-2" />
-          Add FAQ
-        </button>
+        <div className="flex space-x-3">
+          <button
+            onClick={() => {
+              console.log('🔘 Unanswered Queries button clicked');
+              setShowUnansweredQueries(true);
+            }}
+            className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 flex items-center"
+          >
+            <ChatBubbleLeftRightIcon className="h-4 w-4 mr-2" />
+            Unanswered Queries
+          </button>
+          <button
+            onClick={handleCreateFAQ}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
+          >
+            <PlusIcon className="h-4 w-4 mr-2" />
+            Add FAQ
+          </button>
+        </div>
       </div>
 
       {/* Statistics */}
@@ -756,6 +772,12 @@ const FAQManager = () => {
           </div>
         </div>
       )}
+
+      {/* Unanswered Queries Modal */}
+      <UnansweredQueries 
+        isOpen={showUnansweredQueries} 
+        onClose={() => setShowUnansweredQueries(false)}
+      />
     </div>
   );
 };

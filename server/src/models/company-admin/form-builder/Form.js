@@ -112,6 +112,7 @@ const Form = sequelize.define('Form', {
 }, {
   tableName: 'forms',
   timestamps: true,
+  underscored: false,
   indexes: [
     {
       fields: ['companyId']

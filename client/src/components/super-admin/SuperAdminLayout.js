@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Outlet, Link, useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import ChatWidget from '../widget/chat/ChatWidget';
 import {
   HomeIcon,
   BuildingOffice2Icon,
@@ -179,6 +180,12 @@ const SuperAdminLayout = () => {
           </div>
         </main>
       </div>
+
+      {/* Enhanced Chat Widget - Permanent throughout super admin */}
+      <ChatWidget 
+        companyId={1} 
+        widgetId="widget_1_super_admin" 
+      />
     </div>
   );
 };
