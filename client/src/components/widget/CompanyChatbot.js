@@ -1,0 +1,723 @@
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { PaperAirplaneIcon, XMarkIcon, ChatBubbleLeftRightIcon, MagnifyingGlassIcon, SparklesIcon, UserIcon, ArrowUpIcon } from '@heroicons/react/24/outline';
+import { API_URL } from '../../utils/config';
+
+const CompanyChatbot = ({ companyId, isVisible, onClose }) => {
+  const [messages, setMessages] = useState([]);
+  const [inputValue, setInputValue] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [typingText, setTypingText] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
+  const [sessionId, setSessionId] = useState(null);
+  const [showWelcomeForm, setShowWelcomeForm] = useState(false);
+  const [welcomeFormData, setWelcomeFormData] = useState({
+    name: '',
+    email: '',
+    topic: ''
+  });
+  const messagesEndRef = useRef(null);
+  const messagesTopRef = useRef(null);
+  const inputRef = useRef(null);
+  const suggestionTimeoutRef = useRef(null);
+
+  // Load chat history when widget opens
+  useEffect(() => {
+    if (isVisible && messages.length === 0) {
+      loadChatHistory();
+    }
+  }, [isVisible]);
+
+  // Start new chat function
+  const startNewChat = () => {
+    setMessages([]);
+    setSessionId(null);
+    setCurrentPage(1);
+    setHasMoreMessages(true);
+    setShowWelcomeForm(true);
+    setShowSuggestions(false);
+    setInputValue('');
+  };
+
+  // Load chat history
+  const loadChatHistory = async (page = 1) => {
+    if (page === 1) {
+      setIsLoadingHistory(true);
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/api/widget/search/history?companyId=${companyId || 6}&page=${page}&limit=20`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        if (page === 1) {
+          // First load - replace messages
+          setMessages(data.data.messages);
+          setCurrentPage(1);
+        } else {
+          // Pagination - prepend messages
+          setMessages(prev => [...data.data.messages, ...prev]);
+        }
+        
+        setHasMoreMessages(data.data.pagination.hasMore);
+        setSessionId(data.data.currentSessionId);
+        
+        // Show welcome form if no history
+        if (data.data.messages.length === 0) {
+          setShowWelcomeForm(true);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading chat history:', error);
+      // Show welcome form on error
+      if (page === 1) {
+        setShowWelcomeForm(true);
+      }
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  // Load more messages (pagination)
+  const loadMoreMessages = async () => {
+    if (isLoadingHistory || !hasMoreMessages) return;
+    
+    const nextPage = currentPage + 1;
+    await loadChatHistory(nextPage);
+    setCurrentPage(nextPage);
+  };
+
+  // Store message in database
+  const storeMessage = async (messageType, content, customSessionId = null) => {
+    try {
+      const response = await fetch(`${API_URL}/api/widget/search/message`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          messageType,
+          content,
+          companyId: companyId || 6,
+          sessionId: customSessionId || sessionId
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setSessionId(data.data.sessionId);
+      }
+    } catch (error) {
+      console.error('Error storing message:', error);
+    }
+  };
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Debounced FAQ suggestions
+  const debouncedFetchSuggestions = useCallback(
+    (() => {
+      let timeoutId;
+      return (query) => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(async () => {
+          if (query.length > 2) {
+            setIsLoadingSuggestions(true);
+            try {
+              const response = await fetch(`${API_URL}/api/widget/search/suggestions/public?query=${encodeURIComponent(query)}&limit=5&companyId=${companyId || 6}`, {
+                method: 'GET',
+                headers: {
+                  'Content-Type': 'application/json'
+                }
+              });
+              
+              const data = await response.json();
+              
+              if (data.success) {
+                setSuggestions(data.data);
+                setShowSuggestions(true);
+              } else {
+                setSuggestions([]);
+                setShowSuggestions(false);
+              }
+            } catch (error) {
+              console.error('Error fetching suggestions:', error);
+              setSuggestions([]);
+              setShowSuggestions(false);
+            } finally {
+              setIsLoadingSuggestions(false);
+            }
+          } else {
+            setSuggestions([]);
+            setShowSuggestions(false);
+          }
+        }, 300); // 300ms delay
+      };
+    })(),
+    [companyId]
+  );
+
+  // Handle input change with suggestions
+  const handleInputChange = (e) => {
+    const value = e.target.value;
+    setInputValue(value);
+    debouncedFetchSuggestions(value);
+  };
+
+  // Handle FAQ suggestion click
+  const handleSuggestionClick = async (faq) => {
+    setShowSuggestions(false);
+    setInputValue('');
+    
+    // Add user message showing the FAQ question
+    const userMessage = {
+      id: Date.now(),
+      type: 'user',
+      content: faq.question,
+      timestamp: new Date(),
+      isTyping: false
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    await storeMessage('user', faq.question);
+    setIsLoading(true);
+
+    try {
+      // Get the answer for this specific FAQ
+      const response = await fetch(`${API_URL}/api/widget/search/faq/public?faqId=${faq.id}&companyId=${companyId || 6}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setIsLoading(false);
+        
+        // Add bot message with typing animation
+        const botMessage = {
+          id: Date.now() + 1,
+          type: 'bot',
+          content: '',
+          timestamp: new Date(),
+          isTyping: true
+        };
+
+        setMessages(prev => [...prev, botMessage]);
+
+        // Start typing animation
+        setIsTyping(true);
+        setTypingText(data.data.answer);
+
+        // Store bot message
+        await storeMessage('bot', data.data.answer);
+
+        // Fallback: if typing animation doesn't complete within 5 seconds, force completion
+        setTimeout(() => {
+          setIsTyping(false);
+          setMessages(prev => prev.map(msg => 
+            msg.isTyping 
+              ? { ...msg, content: data.data.answer, isTyping: false }
+              : msg
+          ));
+        }, 5000);
+
+      } else {
+        throw new Error(data.message || 'Failed to get FAQ answer');
+      }
+    } catch (error) {
+      console.error('Error getting FAQ answer:', error);
+      const errorMessage = {
+        id: Date.now() + 1,
+        type: 'bot',
+        content: "I'm sorry, I'm having trouble getting the answer for this FAQ. Please try again.",
+        timestamp: new Date(),
+        isTyping: false
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      await storeMessage('bot', errorMessage.content);
+      setIsLoading(false);
+    }
+  };
+
+  // Improved typing animation effect
+  useEffect(() => {
+    if (isTyping && typingText) {
+      console.log('Starting typing animation with text:', typingText);
+      let currentIndex = 0;
+      
+      const typeNextCharacter = () => {
+        if (currentIndex >= typingText.length) {
+          console.log('Typing animation completed');
+          setIsTyping(false);
+          return;
+        }
+        
+        setMessages(prev => prev.map(msg => 
+          msg.isTyping 
+            ? { ...msg, content: typingText.substring(0, currentIndex + 1) }
+            : msg
+        ));
+        
+        currentIndex++;
+        setTimeout(typeNextCharacter, 30); // Faster typing for better UX
+      };
+      
+      // Start typing immediately
+      typeNextCharacter();
+    }
+  }, [isTyping, typingText]);
+
+  const sendMessage = async (content) => {
+    if (!content.trim() || isLoading) return;
+
+    // Hide suggestions when sending message
+    setShowSuggestions(false);
+
+    const userMessage = {
+      id: Date.now(),
+      type: 'user',
+      content: content.trim(),
+      timestamp: new Date(),
+      isTyping: false
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    await storeMessage('user', content.trim());
+    setInputValue('');
+    setIsLoading(true);
+
+    try {
+      const response = await fetch(`${API_URL}/api/widget/search/ai/public?query=${encodeURIComponent(content)}&limit=5&companyId=${companyId || 6}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        console.log('API Response received:', data.data.answer);
+        
+        // Stop loading and start typing
+        setIsLoading(false);
+        
+        // Add bot message with typing animation
+        const botMessage = {
+          id: Date.now() + 1,
+          type: 'bot',
+          content: '',
+          timestamp: new Date(),
+          isTyping: true
+        };
+
+        setMessages(prev => [...prev, botMessage]);
+
+        // Start typing animation
+        setIsTyping(true);
+        setTypingText(data.data.answer);
+
+        // Store bot message
+        await storeMessage('bot', data.data.answer);
+
+        // Fallback: if typing animation doesn't complete within 5 seconds, force completion
+        setTimeout(() => {
+          console.log('Forcing typing animation completion');
+          setIsTyping(false);
+          setMessages(prev => prev.map(msg => 
+            msg.isTyping 
+              ? { ...msg, content: data.data.answer, isTyping: false }
+              : msg
+          ));
+        }, 5000);
+
+      } else {
+        throw new Error(data.message || 'Failed to get response');
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      const errorMessage = {
+        id: Date.now() + 1,
+        type: 'bot',
+        content: "I'm sorry, I'm having trouble connecting right now. Please try again in a moment.",
+        timestamp: new Date(),
+        isTyping: false
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      await storeMessage('bot', errorMessage.content);
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    sendMessage(inputValue);
+  };
+
+  // Handle welcome form submission
+  const handleWelcomeFormSubmit = async (e) => {
+    e.preventDefault();
+    const { name, email, topic } = welcomeFormData;
+    
+    try {
+      // Create lead in the database
+      const leadResponse = await fetch(`${API_URL}/api/widget/search/lead/public`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name,
+          email,
+          topic,
+          companyId: companyId || 6, // Using companyId from context or default 6
+          formData: welcomeFormData,
+          formType: 'chatbot_welcome',
+          source: 'Chatbot Welcome Form'
+        })
+      });
+
+      const leadData = await leadResponse.json();
+      
+      if (leadData.success) {
+        console.log('✅ Lead created successfully:', leadData.data);
+      } else {
+        console.error('❌ Failed to create lead:', leadData.message);
+      }
+    } catch (error) {
+      console.error('❌ Error creating lead:', error);
+    }
+    
+    // Add welcome message with user info
+    const welcomeMessage = {
+      id: 'welcome',
+      type: 'bot',
+      content: `Hello ${name}! 👋 Welcome to our AI assistant. I'm here to help you with any questions about our services.${topic ? ` I see you're interested in ${topic}.` : ''} How can I assist you today?`,
+      timestamp: new Date(),
+      isTyping: false
+    };
+
+    setMessages([welcomeMessage]);
+    setShowWelcomeForm(false);
+    setWelcomeFormData({ name: '', email: '', topic: '' });
+    
+    // Store the welcome message
+    storeMessage('bot', welcomeMessage.content);
+  };
+
+  // Handle welcome form input change
+  const handleWelcomeFormChange = (e) => {
+    const { name, value } = e.target;
+    setWelcomeFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const formatTime = (timestamp) => {
+    return new Date(timestamp).toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  };
+
+  if (!isVisible) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex justify-end animate-fade-in">
+      <div className="w-full max-w-md h-full bg-gradient-to-br from-white via-gray-50 to-white shadow-2xl flex flex-col animate-slide-in-right">
+        {/* Enhanced Header */}
+        <div className="relative p-6 bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 text-white overflow-hidden">
+          {/* Background pattern */}
+          <div className="absolute inset-0 opacity-10">
+            <div className="absolute top-0 left-0 w-32 h-32 bg-white rounded-full -translate-x-16 -translate-y-16"></div>
+            <div className="absolute bottom-0 right-0 w-24 h-24 bg-white rounded-full translate-x-12 translate-y-12"></div>
+          </div>
+          
+          <div className="relative flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="relative">
+                <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm border border-white/30">
+                  <ChatBubbleLeftRightIcon className="w-6 h-6" />
+                </div>
+                <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white animate-pulse"></div>
+              </div>
+              <div>
+                <h3 className="font-bold text-lg">AI Assistant</h3>
+                <p className="text-blue-100 text-sm flex items-center">
+                  <SparklesIcon className="w-3 h-3 mr-1" />
+                  Powered by Nowgray
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={startNewChat}
+                className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-sm rounded-full transition-all duration-200 hover:scale-105 backdrop-blur-sm border border-white/30"
+              >
+                New Chat
+              </button>
+              <button
+                onClick={onClose}
+                className="p-2 hover:bg-white/20 rounded-full transition-all duration-200 hover:scale-110"
+              >
+                <XMarkIcon className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Enhanced Messages Area */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-gray-50 to-white relative">
+          {/* Load More Button */}
+          {hasMoreMessages && (
+            <div className="flex justify-center mb-4">
+              <button
+                onClick={loadMoreMessages}
+                disabled={isLoadingHistory}
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-full transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoadingHistory ? (
+                  <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <ArrowUpIcon className="w-4 h-4" />
+                )}
+                <span className="text-sm font-medium">
+                  {isLoadingHistory ? 'Loading...' : 'Load More Messages'}
+                </span>
+              </button>
+            </div>
+          )}
+
+          {/* Loading History Indicator */}
+          {isLoadingHistory && messages.length === 0 && (
+            <div className="flex justify-center items-center py-8">
+              <div className="flex items-center space-x-3">
+                <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-gray-600">Loading chat history...</span>
+              </div>
+            </div>
+          )}
+
+          {/* Welcome Form */}
+          {showWelcomeForm && !isLoadingHistory && (
+            <div className="flex justify-center items-center py-8 animate-fade-in">
+              <div className="w-full max-w-sm">
+                <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+                  <div className="text-center mb-6">
+                    <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <ChatBubbleLeftRightIcon className="w-8 h-8 text-white" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">Welcome! 👋</h3>
+                    <p className="text-gray-600 text-sm">Let's get started with your conversation</p>
+                  </div>
+                  
+                  <form onSubmit={handleWelcomeFormSubmit} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Your Name</label>
+                      <input
+                        type="text"
+                        name="name"
+                        value={welcomeFormData.name}
+                        onChange={handleWelcomeFormChange}
+                        placeholder="Enter your name"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                        required
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Email (Optional)</label>
+                      <input
+                        type="email"
+                        name="email"
+                        value={welcomeFormData.email}
+                        onChange={handleWelcomeFormChange}
+                        placeholder="Enter your email"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">What can I help you with?</label>
+                      <select
+                        name="topic"
+                        value={welcomeFormData.topic}
+                        onChange={handleWelcomeFormChange}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                      >
+                        <option value="">Select a topic</option>
+                        <option value="General Information">General Information</option>
+                        <option value="Account Management">Account Management</option>
+                        <option value="Technical Support">Technical Support</option>
+                        <option value="Billing & Payments">Billing & Payments</option>
+                        <option value="Product Features">Product Features</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                    
+                    <button
+                      type="submit"
+                      className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium py-3 px-6 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                    >
+                      Start Chatting
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div ref={messagesTopRef} />
+          
+          {messages.map((message, index) => (
+            <div
+              key={message.id}
+              className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} animate-message-slide-in`}
+              style={{ animationDelay: `${index * 0.1}s` }}
+            >
+              <div className="flex items-end space-x-2 max-w-[85%]">
+                {message.type === 'bot' && (
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                    <ChatBubbleLeftRightIcon className="w-4 h-4 text-white" />
+                  </div>
+                )}
+                
+                <div
+                  className={`rounded-2xl px-4 py-3 shadow-sm ${
+                    message.type === 'user'
+                      ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-br-md'
+                      : 'bg-white text-gray-800 rounded-bl-md border border-gray-100 shadow-md'
+                  }`}
+                >
+                  {message.isTyping ? (
+                    <div className="flex items-center space-x-3">
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                      </div>
+                      <span className="text-sm text-gray-500 font-medium">AI is thinking...</span>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                      <p className={`text-xs mt-2 ${
+                        message.type === 'user' ? 'text-blue-100' : 'text-gray-400'
+                      }`}>
+                        {formatTime(message.timestamp)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                
+                {message.type === 'user' && (
+                  <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-500 rounded-full flex items-center justify-center flex-shrink-0">
+                    <UserIcon className="w-4 h-4 text-white" />
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {/* Enhanced Loading indicator */}
+          {isLoading && (
+            <div className="flex justify-start animate-message-slide-in">
+              <div className="flex items-end space-x-2">
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                  <ChatBubbleLeftRightIcon className="w-4 h-4 text-white" />
+                </div>
+                <div className="bg-white text-gray-800 rounded-2xl rounded-bl-md shadow-md border border-gray-100 px-4 py-3">
+                  <div className="flex items-center space-x-3">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                      <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                      <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                    </div>
+                    <span className="text-sm text-gray-600 font-medium">Searching for answers...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Enhanced FAQ Suggestions */}
+        {showSuggestions && suggestions.length > 0 && (
+          <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-t border-blue-100">
+            <div className="text-sm text-blue-600 mb-3 flex items-center font-medium">
+              <MagnifyingGlassIcon className="w-4 h-4 mr-2" />
+              Quick FAQ Suggestions
+            </div>
+            <div className="space-y-2 max-h-40 overflow-y-auto">
+              {suggestions.map((faq) => (
+                <button
+                  key={faq.id}
+                  onClick={() => handleSuggestionClick(faq)}
+                  className="w-full text-left p-3 bg-white rounded-xl border border-blue-200 hover:bg-blue-50 hover:border-blue-300 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md transform hover:scale-[1.02]"
+                >
+                  <div className="font-medium text-gray-800 text-sm">{faq.question}</div>
+                  <div className="text-blue-600 text-xs mt-1 flex items-center">
+                    <span className="bg-blue-100 px-2 py-1 rounded-full">{faq.category}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Enhanced Input Area */}
+        {!showWelcomeForm && (
+          <div className="p-6 bg-white border-t border-gray-200">
+            <form onSubmit={handleSubmit} className="flex space-x-3">
+              <div className="flex-1 relative">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={inputValue}
+                  onChange={handleInputChange}
+                  placeholder="Ask me anything..."
+                  disabled={isLoading}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed shadow-sm transition-all duration-200"
+                />
+                {isLoadingSuggestions && (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                )}
+              </div>
+              <button
+                type="submit"
+                disabled={!inputValue.trim() || isLoading}
+                className="p-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-gray-300 disabled:to-gray-400 text-white rounded-full transition-all duration-200 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none"
+              >
+                <PaperAirplaneIcon className="w-5 h-5" />
+              </button>
+            </form>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default CompanyChatbot;

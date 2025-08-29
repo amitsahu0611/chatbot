@@ -1,0 +1,123 @@
+const User = require('./User');
+const Company = require('./Company');
+const FAQ = require('./company-admin/faq-manager/FAQ');
+const SupportSettings = require('./company-admin/support-settings/SupportSettings');
+const Lead = require('./company-admin/lead-viewer/Lead');
+const Form = require('./company-admin/form-builder/Form');
+const FormSubmission = require('./company-admin/form-builder/FormSubmission');
+
+// Define associations
+Company.hasMany(User, {
+  foreignKey: 'companyId',
+  as: 'users'
+});
+
+User.belongsTo(Company, {
+  foreignKey: 'companyId',
+  as: 'company'
+});
+
+// FAQ associations
+FAQ.belongsTo(User, {
+  foreignKey: 'createdBy',
+  as: 'createdByUser'
+});
+
+FAQ.belongsTo(User, {
+  foreignKey: 'updatedBy',
+  as: 'updatedByUser'
+});
+
+User.hasMany(FAQ, {
+  foreignKey: 'createdBy',
+  as: 'createdFAQs'
+});
+
+User.hasMany(FAQ, {
+  foreignKey: 'updatedBy',
+  as: 'updatedFAQs'
+});
+
+// SupportSettings associations
+SupportSettings.belongsTo(User, {
+  foreignKey: 'createdBy',
+  as: 'createdByUser'
+});
+
+SupportSettings.belongsTo(User, {
+  foreignKey: 'updatedBy',
+  as: 'updatedByUser'
+});
+
+User.hasMany(SupportSettings, {
+  foreignKey: 'createdBy',
+  as: 'createdSupportSettings'
+});
+
+User.hasMany(SupportSettings, {
+  foreignKey: 'updatedBy',
+  as: 'updatedSupportSettings'
+});
+
+// Lead associations
+Lead.belongsTo(User, {
+  foreignKey: 'assignedTo',
+  as: 'assignedUser'
+});
+
+User.hasMany(Lead, {
+  foreignKey: 'assignedTo',
+  as: 'assignedLeads'
+});
+
+// Form associations
+Form.belongsTo(Company, {
+  foreignKey: 'companyId',
+  as: 'company'
+});
+
+Company.hasMany(Form, {
+  foreignKey: 'companyId',
+  as: 'forms'
+});
+
+// FormSubmission associations
+FormSubmission.belongsTo(Form, {
+  foreignKey: 'formId',
+  as: 'form'
+});
+
+FormSubmission.belongsTo(Company, {
+  foreignKey: 'companyId',
+  as: 'company'
+});
+
+FormSubmission.belongsTo(Lead, {
+  foreignKey: 'leadId',
+  as: 'lead'
+});
+
+Form.hasMany(FormSubmission, {
+  foreignKey: 'formId',
+  as: 'submissions'
+});
+
+Company.hasMany(FormSubmission, {
+  foreignKey: 'companyId',
+  as: 'formSubmissions'
+});
+
+Lead.hasMany(FormSubmission, {
+  foreignKey: 'leadId',
+  as: 'formSubmissions'
+});
+
+module.exports = {
+  User,
+  Company,
+  FAQ,
+  SupportSettings,
+  Lead,
+  Form,
+  FormSubmission
+};
