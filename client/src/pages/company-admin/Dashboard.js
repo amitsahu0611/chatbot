@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from 'react-query';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import ChatWidget from '../../components/widget/chat/ChatWidget';
@@ -42,6 +43,7 @@ ChartJS.register(
 
 const CompanyDashboard = () => {
   const { user, getCurrentCompanyId } = useAuth();
+  const navigate = useNavigate();
   const [showWidget, setShowWidget] = useState(false);
   const companyId = getCurrentCompanyId();
   
@@ -159,6 +161,43 @@ const CompanyDashboard = () => {
     </div>
   );
 
+  // Quick Actions handlers
+  const handleCreateForm = () => {
+    navigate('/company-admin/form-builder');
+  };
+
+  const handleAddFAQ = () => {
+    navigate('/company-admin/faqs');
+  };
+
+  const handleWidgetSettings = () => {
+    navigate('/company-admin/widget');
+  };
+
+  const handleExportLeads = async () => {
+    try {
+      const response = await api.post('/company-admin/lead-viewer/export', {
+        format: 'csv',
+        filters: {} // Export all leads
+      });
+      
+      // Create and download CSV file
+      const csvContent = response.data.data.csvData;
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `leads_export_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting leads:', error);
+      alert('Failed to export leads. Please try again.');
+    }
+  };
+
   const LeadItem = ({ lead }) => (
     <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0">
       <div className="flex items-center space-x-3">
@@ -263,7 +302,10 @@ const CompanyDashboard = () => {
       <div className="card">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-medium text-gray-900">Recent Leads</h3>
-          <button className="flex items-center text-sm text-blue-600 hover:text-blue-500 font-medium">
+          <button 
+            onClick={() => navigate('/company-admin/leads')}
+            className="flex items-center text-sm text-blue-600 hover:text-blue-500 font-medium"
+          >
             <PlusIcon className="h-4 w-4 mr-1" />
             View all leads
           </button>
@@ -287,19 +329,31 @@ const CompanyDashboard = () => {
       <div className="card">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Quick Actions</h3>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <button className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors duration-200">
+          <button 
+            onClick={handleCreateForm}
+            className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+          >
             <DocumentTextIcon className="h-5 w-5 mr-2" />
             Create Form
           </button>
-          <button className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors duration-200">
+          <button 
+            onClick={handleAddFAQ}
+            className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+          >
             <QuestionMarkCircleIcon className="h-5 w-5 mr-2" />
             Add FAQ
           </button>
-          <button className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors duration-200">
+          <button 
+            onClick={handleWidgetSettings}
+            className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+          >
             <ChatBubbleLeftRightIcon className="h-5 w-5 mr-2" />
             Widget Settings
           </button>
-          <button className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors duration-200">
+          <button 
+            onClick={handleExportLeads}
+            className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+          >
             <UserGroupIcon className="h-5 w-5 mr-2" />
             Export Leads
           </button>

@@ -140,7 +140,7 @@ const getDashboardStats = async (req, res) => {
           COUNT(CASE WHEN table_name = 'leads' THEN 1 END) as leads,
           COUNT(CASE WHEN table_name = 'chat_messages' THEN 1 END) as conversations
         FROM (
-          SELECT created_at, 'leads' as table_name FROM leads WHERE company_id = :companyId AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+          SELECT createdAt as created_at, 'leads' as table_name FROM leads WHERE companyId = :companyId AND createdAt >= DATE_SUB(NOW(), INTERVAL 7 DAY)
           UNION ALL
           SELECT created_at, 'chat_messages' as table_name FROM chat_messages WHERE company_id = :companyId AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
         ) combined
