@@ -7,6 +7,12 @@ const errorHandler = (err, req, res, next) => {
   // Log error
   logger.error(err);
 
+  // Handle 404 errors properly
+  if (err.statusCode === 404 || err.message.includes('Not Found')) {
+    error.statusCode = 404;
+    error.message = err.message || 'Resource not found';
+  }
+
   // Mongoose bad ObjectId
   if (err.name === 'CastError') {
     const message = 'Resource not found';
