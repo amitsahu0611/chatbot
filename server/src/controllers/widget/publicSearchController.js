@@ -614,11 +614,20 @@ const storeMessage = async (req, res) => {
       });
     }
 
-    const finalSessionId = sessionId || generateSessionId(clientIP, companyId);
+    // Validate company ID is a valid number
+    const parsedCompanyId = parseInt(companyId);
+    if (isNaN(parsedCompanyId) || parsedCompanyId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid company ID provided'
+      });
+    }
+
+    const finalSessionId = sessionId || generateSessionId(clientIP, parsedCompanyId);
 
     const message = await ChatMessage.create({
       ipAddress: clientIP,
-      companyId: parseInt(companyId),
+      companyId: parsedCompanyId,
       sessionId: finalSessionId,
       messageType: messageType,
       content: content,

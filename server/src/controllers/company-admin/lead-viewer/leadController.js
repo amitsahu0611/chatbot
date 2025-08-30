@@ -14,7 +14,7 @@ const getLeads = async (req, res) => {
       });
     }
 
-    const { companyId, role } = req.user;
+    const { companyId: userCompanyId, role } = req.user;
     const { 
       page = 1, 
       limit = 10, 
@@ -24,15 +24,24 @@ const getLeads = async (req, res) => {
       priority = '',
       sortBy = 'createdAt',
       sortOrder = 'desc',
-      allCompanies = false // New parameter for super admin
+      allCompanies = false, // New parameter for super admin
+      companyId: queryCompanyId // Company ID from query parameter
     } = req.query;
+
+    // Determine which company ID to use
+    let targetCompanyId = userCompanyId;
+    
+    // For super admin, use query companyId if provided
+    if (role === 'super_admin' && queryCompanyId) {
+      targetCompanyId = parseInt(queryCompanyId);
+    }
 
     // Build query - Super admin can see all companies if allCompanies=true
     const where = {};
     
     // Only filter by company if not super admin or if allCompanies is not requested
     if (role !== 'super_admin' || !allCompanies) {
-      where.companyId = companyId;
+      where.companyId = targetCompanyId;
     }
     
     if (search) {
@@ -69,7 +78,7 @@ const getLeads = async (req, res) => {
     // Get statistics with better error handling
     let stats = null;
     try {
-      const statsWhere = role !== 'super_admin' || !allCompanies ? { companyId } : {};
+      const statsWhere = role !== 'super_admin' || !allCompanies ? { companyId: targetCompanyId } : {};
       stats = await Lead.findOne({
         where: statsWhere,
         attributes: [
@@ -119,7 +128,7 @@ const getLeads = async (req, res) => {
         },
         // Add info about current view
         viewInfo: {
-          companyId: role !== 'super_admin' || !allCompanies ? companyId : 'all',
+          companyId: role !== 'super_admin' || !allCompanies ? targetCompanyId : 'all',
           role: role,
           allCompanies: role === 'super_admin' && allCompanies
         }
@@ -402,8 +411,16 @@ const getLeadStats = async (req, res) => {
       });
     }
 
-    const { companyId, role } = req.user;
-    const { allCompanies = false } = req.query;
+    const { companyId: userCompanyId, role } = req.user;
+    const { allCompanies = false, companyId: queryCompanyId } = req.query;
+
+    // Determine which company ID to use
+    let targetCompanyId = userCompanyId;
+    
+    // For super admin, use query companyId if provided
+    if (role === 'super_admin' && queryCompanyId) {
+      targetCompanyId = parseInt(queryCompanyId);
+    }
 
     // Get statistics with better error handling
     let stats = null;
@@ -412,7 +429,7 @@ const getLeadStats = async (req, res) => {
     // Build where clause - Super admin can see all companies if allCompanies=true
     const statsWhere = {};
     if (role !== 'super_admin' || !allCompanies) {
-      statsWhere.companyId = companyId;
+      statsWhere.companyId = targetCompanyId;
     }
     
     try {

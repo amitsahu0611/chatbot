@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Outlet, Link, useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import ChatWidget from '../widget/chat/ChatWidget';
+
 import {
   HomeIcon,
   BuildingOffice2Icon,
@@ -27,8 +27,8 @@ const SuperAdminLayout = () => {
     { name: 'Dashboard', href: '/super-admin/dashboard', icon: HomeIcon },
     { name: 'Companies', href: '/super-admin/companies', icon: BuildingOffice2Icon },
     { name: 'Users', href: '/super-admin/users', icon: UsersIcon },
-    { name: 'Analytics', href: '/analytics', icon: ChartBarIcon },
-    { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
+    // { name: 'Analytics', href: '/super-admin/analytics', icon: ChartBarIcon },
+    // { name: 'Settings', href: '/super-admin/settings', icon: Cog6ToothIcon },
   ];
 
   const handleLogout = () => {
@@ -182,10 +182,7 @@ const SuperAdminLayout = () => {
       </div>
 
       {/* Enhanced Chat Widget - Permanent throughout super admin */}
-      <ChatWidget 
-        companyId={1} 
-        widgetId="widget_1_super_admin" 
-      />
+
     </div>
   );
 };

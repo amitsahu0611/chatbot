@@ -6,6 +6,7 @@ const SupportSettings = require('./company-admin/support-settings/SupportSetting
 const Lead = require('./company-admin/lead-viewer/Lead');
 const Form = require('./company-admin/form-builder/Form');
 const FormSubmission = require('./company-admin/form-builder/FormSubmission');
+const ActivityLog = require('./ActivityLog');
 
 // Define associations
 Company.hasMany(User, {
@@ -134,6 +135,27 @@ FAQ.hasMany(UnansweredQuery, {
   as: 'relatedQueries'
 });
 
+// ActivityLog associations
+ActivityLog.belongsTo(User, {
+  foreignKey: 'userId',
+  as: 'user'
+});
+
+ActivityLog.belongsTo(Company, {
+  foreignKey: 'companyId',
+  as: 'company'
+});
+
+User.hasMany(ActivityLog, {
+  foreignKey: 'userId',
+  as: 'activities'
+});
+
+Company.hasMany(ActivityLog, {
+  foreignKey: 'companyId',
+  as: 'activities'
+});
+
 module.exports = {
   User,
   Company,
@@ -142,5 +164,6 @@ module.exports = {
   SupportSettings,
   Lead,
   Form,
-  FormSubmission
+  FormSubmission,
+  ActivityLog
 };

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -36,7 +36,26 @@ import WidgetForm from './pages/widget/Form';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 
+// Global Chat Components
+import CompanyChatbot from './components/widget/CompanyChatbot';
+import FixedChatbotIcon from './components/widget/FixedChatbotIcon';
+
 function App() {
+  const [showChatbot, setShowChatbot] = useState(false);
+
+  // Get company ID from localStorage or default
+  const getCompanyId = () => {
+    return parseInt(localStorage.getItem('companyId') || localStorage.getItem('selectedCompanyId')) || 6;
+  };
+
+  const handleChatbotOpen = () => {
+    setShowChatbot(true);
+  };
+
+  const handleChatbotClose = () => {
+    setShowChatbot(false);
+  };
+
   return (
     <AuthProvider>
       <div className="App">
@@ -55,6 +74,8 @@ function App() {
             <Route path="dashboard" element={<SuperAdminDashboard />} />
             <Route path="companies" element={<CompaniesManagement />} />
             <Route path="users" element={<UsersManagement />} />
+            <Route path="analytics" element={<Analytics />} />
+            <Route path="settings" element={<div className="p-8"><h1 className="text-2xl font-bold">Super Admin Settings</h1><p className="mt-4 text-gray-600">Settings page coming soon...</p></div>} />
           </Route>
           
           {/* Company Selection Route for Super Admin */}
@@ -110,6 +131,32 @@ function App() {
           <Route path="/" element={<AuthRedirect />} />
           <Route path="*" element={<AuthRedirect />} />
         </Routes>
+
+        {/* Global Chat Components - Accessible on every page */}
+        {/* <FixedChatbotIcon 
+          onClick={handleChatbotOpen}
+          isVisible={true}
+        /> */}
+        
+        {/* <CompanyChatbot 
+          companyId={getCompanyId()}
+          isVisible={showChatbot}
+          onClose={handleChatbotClose}
+        /> */}
+
+<FixedChatbotIcon 
+         onClick={handleChatbotOpen}
+         isVisible={true}
+      />
+
+      {/* Company Chatbot */}
+      <CompanyChatbot 
+        companyId={localStorage.getItem('selectedCompanyId')}
+        isVisible={showChatbot}
+        onClose={handleChatbotClose}
+      />
+
+
       </div>
     </AuthProvider>
   );

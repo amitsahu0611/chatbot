@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import ChatWidget from '../../components/widget/chat/ChatWidget';
+
 import { BuildingOfficeIcon, EyeIcon, PencilIcon, TrashIcon, PlusIcon, ChatBubbleLeftRightIcon, PlayIcon, StopIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
@@ -333,13 +333,7 @@ const CompaniesManagement = () => {
         </div>
       )}
 
-      {/* Enhanced Chat Widget */}
-      {showWidget && widgetCompany && (
-        <ChatWidget 
-          companyId={widgetCompany.id} 
-          widgetId={`widget_${widgetCompany.id}_demo`} 
-        />
-      )}
+
     </div>
   );
 };

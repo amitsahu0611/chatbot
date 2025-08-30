@@ -3,7 +3,7 @@ import { Outlet } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Header from './Header';
 import Footer from './Footer';
-import ChatWidget from '../widget/chat/ChatWidget';
+
 
 const Layout = () => {
   const { user } = useAuth();
@@ -25,11 +25,7 @@ const Layout = () => {
       </main>
       <Footer />
       
-      {/* Enhanced Chat Widget - Permanent throughout the system */}
-      <ChatWidget 
-        companyId={getCompanyId()} 
-        widgetId={`widget_${getCompanyId()}_permanent`} 
-      />
+
     </div>
   );
 };

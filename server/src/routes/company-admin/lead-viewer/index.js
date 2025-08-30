@@ -59,6 +59,11 @@ const {
  *         schema:
  *           type: string
  *         description: Sort order (asc/desc)
+ *       - in: query
+ *         name: companyId
+ *         schema:
+ *           type: integer
+ *         description: Company ID (for super admin context)
  */
 router.get('/', auth, authorize('company_admin', 'super_admin'), getLeads);
 

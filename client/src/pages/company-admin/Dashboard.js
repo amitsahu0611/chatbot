@@ -3,7 +3,7 @@ import { useQuery } from 'react-query';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
-import ChatWidget from '../../components/widget/chat/ChatWidget';
+
 import {
   DocumentTextIcon,
   UserGroupIcon,
@@ -440,13 +440,7 @@ const CompanyDashboard = () => {
         )}
       </div>
 
-      {/* Enhanced Chat Widget */}
-      {showWidget && (
-        <ChatWidget 
-          companyId={user?.companyId || 13} 
-          widgetId={`widget_${user?.companyId || 13}_demo`} 
-        />
-      )}
+
     </div>
   );
 };

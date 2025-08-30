@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import ChatWidget from '../../components/widget/chat/ChatWidget';
+
 
 const WidgetChat = () => {
   const [companyId] = useState(13); // Use the test company ID
   const [widgetId] = useState('widget_13_test'); // Use the test widget ID
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50">
@@ -170,8 +171,12 @@ const WidgetChat = () => {
         </div>
       </div>
 
-      {/* Enhanced Chat Widget */}
-      <ChatWidget companyId={companyId} widgetId={widgetId} />
+      {/* Enhanced Chat Widget - Now available globally via App.js */}
+      <div className="text-center p-8">
+        <p className="text-sm text-gray-600">
+          🎉 The chat widget is now available globally! Look for the floating chat button.
+        </p>
+      </div>
     </div>
   );
 };

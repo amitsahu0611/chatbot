@@ -11,7 +11,7 @@ import {
 } from '@heroicons/react/24/outline';
 import api from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
-import { getValidCompanyId } from '../../utils/companyUtils';
+import { getValidCompanyId, getCurrentCompanyId } from '../../utils/companyUtils';
 
 const LeadViewer = () => {
   const { companyId } = useContext(AuthContext); // Get companyId from context
@@ -63,11 +63,17 @@ const LeadViewer = () => {
   const fetchLeads = async () => {
     try {
       setLoading(true);
+      const currentCompanyId = getCurrentCompanyId();
       const params = new URLSearchParams({
         page: pagination.currentPage,
         limit: pagination.limit,
         ...filters
       });
+
+      // Add companyId for super admin context
+      if (currentCompanyId) {
+        params.append('companyId', currentCompanyId);
+      }
 
       const response = await api.get(`/company-admin/lead-viewer?${params}`);
       setLeads(response.data.data.leads);
@@ -84,7 +90,9 @@ const LeadViewer = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await api.get('/company-admin/lead-viewer/stats');
+      const currentCompanyId = getCurrentCompanyId();
+      const params = currentCompanyId ? `?companyId=${currentCompanyId}` : '';
+      const response = await api.get(`/company-admin/lead-viewer/stats${params}`);
       setStats(response.data.data);
     } catch (error) {
       console.error('Error fetching stats:', error);

@@ -54,6 +54,8 @@ router.get('/chat.js', (req, res) => {
   res.sendFile(widgetPath);
 });
 
+
+
 /**
  * @swagger
  * /api/widget/chat-with-theme.js:

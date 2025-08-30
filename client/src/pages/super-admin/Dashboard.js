@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useQuery } from 'react-query';
-import ChatWidget from '../../components/widget/chat/ChatWidget';
+import { useNavigate } from 'react-router-dom';
+import api from '../../services/api';
+
 import {
   BuildingOfficeIcon,
   UsersIcon,
@@ -39,95 +41,73 @@ ChartJS.register(
 
 const SuperAdminDashboard = () => {
   const [showWidget, setShowWidget] = useState(false);
+  const navigate = useNavigate();
   
-  // Mock data - in real app, this would come from API
-  const { data: stats, isLoading } = useQuery('superAdminStats', async () => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    return {
-      totalCompanies: 156,
-      totalUsers: 1247,
-      totalConversations: 8923,
-      totalRevenue: 45678,
-      companiesGrowth: 12.5,
-      usersGrowth: 8.3,
-      conversationsGrowth: -2.1,
-      revenueGrowth: 15.7,
-    };
+  // Fetch real dashboard statistics
+  const { data: stats, isLoading, error } = useQuery('superAdminStats', async () => {
+    const response = await api.get('/super-admin/dashboard/stats');
+    return response.data.data;
+  }, {
+    refetchInterval: 30000, // Refetch every 30 seconds
+    staleTime: 10000, // Data is fresh for 10 seconds
   });
 
+  // Fetch recent activity
   const { data: recentActivity } = useQuery('recentActivity', async () => {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return [
-      {
-        id: 1,
-        type: 'company_registered',
-        company: 'TechCorp Solutions',
-        user: 'john.doe@techcorp.com',
-        timestamp: '2024-01-15T10:30:00Z',
-      },
-      {
-        id: 2,
-        type: 'user_created',
-        company: 'Digital Innovations',
-        user: 'jane.smith@digital.com',
-        timestamp: '2024-01-15T09:15:00Z',
-      },
-      {
-        id: 3,
-        type: 'subscription_upgraded',
-        company: 'Global Enterprises',
-        user: 'admin@global.com',
-        timestamp: '2024-01-15T08:45:00Z',
-      },
-      {
-        id: 4,
-        type: 'company_registered',
-        company: 'StartupXYZ',
-        user: 'founder@startupxyz.com',
-        timestamp: '2024-01-15T08:20:00Z',
-      },
-      {
-        id: 5,
-        type: 'user_created',
-        company: 'E-commerce Plus',
-        user: 'manager@ecommerce.com',
-        timestamp: '2024-01-15T07:30:00Z',
-      },
-    ];
+    const response = await api.get('/super-admin/dashboard/activity?limit=10');
+    return response.data.data;
+  }, {
+    refetchInterval: 60000, // Refetch every minute
+    staleTime: 30000, // Data is fresh for 30 seconds
   });
 
-  const chartData = {
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+  // Fetch chart data
+  const { data: chartData } = useQuery('chartData', async () => {
+    const response = await api.get('/super-admin/dashboard/charts?months=6');
+    return response.data.data;
+  }, {
+    refetchInterval: 300000, // Refetch every 5 minutes
+    staleTime: 120000, // Data is fresh for 2 minutes
+  });
+
+  // Prepare chart data from API response
+  const growthChartData = chartData ? {
+    labels: chartData.map(item => item.month),
     datasets: [
       {
         label: 'Companies',
-        data: [12, 19, 15, 25, 22, 30],
+        data: chartData.map(item => item.companies),
         borderColor: 'rgb(59, 130, 246)',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
         tension: 0.4,
       },
       {
         label: 'Users',
-        data: [45, 52, 48, 65, 58, 75],
+        data: chartData.map(item => item.users),
         borderColor: 'rgb(16, 185, 129)',
         backgroundColor: 'rgba(16, 185, 129, 0.1)',
         tension: 0.4,
       },
     ],
-  };
+  } : { labels: [], datasets: [] };
 
-  const revenueData = {
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+  const activityChartData = chartData ? {
+    labels: chartData.map(item => item.month),
     datasets: [
       {
-        label: 'Revenue ($)',
-        data: [6500, 7200, 6800, 8900, 8200, 9500],
+        label: 'Leads',
+        data: chartData.map(item => item.leads),
         backgroundColor: 'rgba(59, 130, 246, 0.8)',
         borderRadius: 4,
       },
+      {
+        label: 'Form Submissions',
+        data: chartData.map(item => item.submissions),
+        backgroundColor: 'rgba(16, 185, 129, 0.8)',
+        borderRadius: 4,
+      },
     ],
-  };
+  } : { labels: [], datasets: [] };
 
   const chartOptions = {
     responsive: true,
@@ -181,19 +161,27 @@ const SuperAdminDashboard = () => {
           return <UsersIcon className="h-5 w-5 text-green-500" />;
         case 'subscription_upgraded':
           return <CurrencyDollarIcon className="h-5 w-5 text-yellow-500" />;
+        case 'lead_created':
+          return <ChatBubbleLeftRightIcon className="h-5 w-5 text-purple-500" />;
+        case 'form_submitted':
+          return <ChartBarIcon className="h-5 w-5 text-indigo-500" />;
         default:
           return <ChatBubbleLeftRightIcon className="h-5 w-5 text-gray-500" />;
       }
     };
 
-    const getActivityText = (type, company, user) => {
+    const getActivityText = (type, company, user, metadata = {}) => {
       switch (type) {
         case 'company_registered':
           return `New company registered: ${company}`;
         case 'user_created':
-          return `New user created in ${company}`;
+          return `New user ${metadata.name || user} created in ${company}`;
         case 'subscription_upgraded':
           return `${company} upgraded their subscription`;
+        case 'lead_created':
+          return `New lead created in ${company}: ${user}`;
+        case 'form_submitted':
+          return `Form "${metadata.formName || 'Unknown'}" submitted in ${company}`;
         default:
           return 'Activity recorded';
       }
@@ -204,7 +192,7 @@ const SuperAdminDashboard = () => {
         <div className="flex-shrink-0">{getActivityIcon(activity.type)}</div>
         <div className="flex-1 min-w-0">
           <p className="text-sm text-gray-900">
-            {getActivityText(activity.type, activity.company, activity.user)}
+            {getActivityText(activity.type, activity.company, activity.user, activity.metadata)}
           </p>
           <p className="text-sm text-gray-500">
             {new Date(activity.timestamp).toLocaleString()}
@@ -218,6 +206,31 @@ const SuperAdminDashboard = () => {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <span className="ml-3 text-gray-600">Loading dashboard...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+            <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.864-.833-2.634 0L4.168 15.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <h3 className="mt-2 text-sm font-medium text-gray-900">Error loading dashboard</h3>
+          <p className="mt-1 text-sm text-gray-500">{error.message}</p>
+          <div className="mt-6">
+            <button 
+              onClick={() => window.location.reload()}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
+            >
+              Reload Dashboard
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -236,29 +249,29 @@ const SuperAdminDashboard = () => {
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Companies"
-          value={stats.totalCompanies}
-          change={stats.companiesGrowth}
+          value={stats?.totalCompanies || 0}
+          change={stats?.companiesGrowth || 0}
           icon={BuildingOfficeIcon}
           color="bg-blue-500"
         />
         <StatCard
           title="Total Users"
-          value={stats.totalUsers}
-          change={stats.usersGrowth}
+          value={stats?.totalUsers || 0}
+          change={stats?.usersGrowth || 0}
           icon={UsersIcon}
           color="bg-green-500"
         />
         <StatCard
-          title="Total Conversations"
-          value={stats.totalConversations}
-          change={stats.conversationsGrowth}
+          title="Total Leads"
+          value={stats?.totalLeads || 0}
+          change={stats?.leadsGrowth || 0}
           icon={ChatBubbleLeftRightIcon}
           color="bg-purple-500"
         />
         <StatCard
-          title="Total Revenue"
-          value={`$${stats.totalRevenue.toLocaleString()}`}
-          change={stats.revenueGrowth}
+          title="Active Widgets"
+          value={stats?.totalActiveWidgets || 0}
+          change={0}
           icon={CurrencyDollarIcon}
           color="bg-yellow-500"
         />
@@ -268,11 +281,23 @@ const SuperAdminDashboard = () => {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="card">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Growth Overview</h3>
-          <Line data={chartData} options={chartOptions} />
+          {growthChartData.labels.length > 0 ? (
+            <Line data={growthChartData} options={chartOptions} />
+          ) : (
+            <div className="flex items-center justify-center h-64 text-gray-500">
+              <span>No chart data available</span>
+            </div>
+          )}
         </div>
         <div className="card">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Revenue Trend</h3>
-          <Bar data={revenueData} options={chartOptions} />
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Activity Trend</h3>
+          {activityChartData.labels.length > 0 ? (
+            <Bar data={activityChartData} options={chartOptions} />
+          ) : (
+            <div className="flex items-center justify-center h-64 text-gray-500">
+              <span>No chart data available</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -280,34 +305,54 @@ const SuperAdminDashboard = () => {
       <div className="card">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Recent Activity</h3>
         <div className="space-y-1">
-          {recentActivity?.map((activity) => (
-            <ActivityItem key={activity.id} activity={activity} />
-          ))}
+          {recentActivity && recentActivity.length > 0 ? (
+            recentActivity.map((activity) => (
+              <ActivityItem key={activity.id} activity={activity} />
+            ))
+          ) : (
+            <div className="flex items-center justify-center py-8 text-gray-500">
+              <span>No recent activity available</span>
+            </div>
+          )}
         </div>
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          <button className="text-sm text-blue-600 hover:text-blue-500 font-medium">
-            View all activity →
-          </button>
-        </div>
+        {recentActivity && recentActivity.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <button className="text-sm text-blue-600 hover:text-blue-500 font-medium">
+              View all activity →
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Quick Actions */}
       <div className="card">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Quick Actions</h3>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <button className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors duration-200">
+          <button 
+            onClick={() => navigate('/super-admin/companies')}
+            className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+          >
             <BuildingOfficeIcon className="h-5 w-5 mr-2" />
-            Add Company
+            Manage Companies
           </button>
-          <button className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors duration-200">
+          <button 
+            onClick={() => navigate('/super-admin/users')}
+            className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+          >
             <UsersIcon className="h-5 w-5 mr-2" />
-            Create User
+            Manage Users
           </button>
-          <button className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors duration-200">
+          <button 
+            onClick={() => navigate('/super-admin/analytics')}
+            className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+          >
             <ChartBarIcon className="h-5 w-5 mr-2" />
             View Analytics
           </button>
-          <button className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors duration-200">
+          <button 
+            onClick={() => navigate('/super-admin/settings')}
+            className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+          >
             <Cog6ToothIcon className="h-5 w-5 mr-2" />
             System Settings
           </button>
@@ -315,7 +360,7 @@ const SuperAdminDashboard = () => {
       </div>
 
       {/* Enhanced Widget Demo */}
-      <div className="card">
+      {/* <div className="card">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-medium text-gray-900">Enhanced Widget Demo</h3>
           <div className="flex items-center space-x-2">
@@ -391,15 +436,9 @@ const SuperAdminDashboard = () => {
             </div>
           </div>
         )}
-      </div>
+      </div> */}
 
-      {/* Enhanced Chat Widget */}
-      {showWidget && (
-        <ChatWidget 
-          companyId={1} 
-          widgetId="widget_1_demo" 
-        />
-      )}
+
     </div>
   );
 };

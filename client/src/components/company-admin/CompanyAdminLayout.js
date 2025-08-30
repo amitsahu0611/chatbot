@@ -16,9 +16,7 @@ import {
   BuildingOfficeIcon,
   ArrowLeftIcon,
 } from '@heroicons/react/24/outline';
-import CompanyChatbot from '../widget/CompanyChatbot';
-import FixedChatbotIcon from '../widget/FixedChatbotIcon';
-import ChatWidget from '../widget/chat/ChatWidget';
+
 import toast from 'react-hot-toast';
 
 const CompanyAdminLayout = () => {
@@ -26,8 +24,7 @@ const CompanyAdminLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showChatbot, setShowChatbot] = useState(false);
-  const [showFixedIcon, setShowFixedIcon] = useState(true); // Always show the icon
+
   const [selectedCompany, setSelectedCompany] = useState(null);
 
   // Get selected company info
@@ -75,8 +72,8 @@ const CompanyAdminLayout = () => {
     { name: 'FAQ Manager', href: '/company-admin/faqs', icon: QuestionMarkCircleIcon },
     { name: 'Support Settings', href: '/company-admin/support', icon: PhoneIcon },
     { name: 'Widget Management', href: '/company-admin/widget', icon: ChatBubbleLeftRightIcon },
-    { name: 'Analytics', href: '/analytics', icon: ChartBarIcon },
-    { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
+    // { name: 'Analytics', href: '/analytics', icon: ChartBarIcon },
+    // { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
   ];
 
   const handleLogout = () => {
@@ -247,26 +244,7 @@ const CompanyAdminLayout = () => {
         </main>
       </div>
 
-      {/* Chatbot */}
-      {showFixedIcon && (
-        <FixedChatbotIcon
-          onClick={() => setShowChatbot(true)}
-          companyId={selectedCompany?.id || user?.companyId}
-        />
-      )}
-      
-      {showChatbot && (
-        <CompanyChatbot
-          companyId={selectedCompany?.id || user?.companyId}
-          onClose={() => setShowChatbot(false)}
-        />
-      )}
 
-      {/* Enhanced Chat Widget - Permanent throughout company admin */}
-      <ChatWidget 
-        companyId={selectedCompany?.id || user?.companyId || 13} 
-        widgetId={`widget_${selectedCompany?.id || user?.companyId || 13}_permanent`} 
-      />
     </div>
   );
 };

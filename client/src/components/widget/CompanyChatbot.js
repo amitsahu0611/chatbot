@@ -101,6 +101,9 @@ const CompanyChatbot = ({ companyId, isVisible, onClose }) => {
   // Store message in database
   const storeMessage = async (messageType, content, customSessionId = null) => {
     try {
+      // Ensure we have a valid company ID
+      const validCompanyId = companyId && companyId > 0 ? companyId : 6;
+      
       const response = await fetch(`${API_URL}/api/widget/search/message`, {
         method: 'POST',
         headers: {
@@ -109,7 +112,7 @@ const CompanyChatbot = ({ companyId, isVisible, onClose }) => {
         body: JSON.stringify({
           messageType,
           content,
-          companyId: companyId || 6,
+          companyId: validCompanyId,
           sessionId: customSessionId || sessionId
         })
       });
@@ -442,50 +445,54 @@ const CompanyChatbot = ({ companyId, isVisible, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex justify-end animate-fade-in">
-      <div className="w-full max-w-md h-full bg-gradient-to-br from-white via-gray-50 to-white shadow-2xl flex flex-col animate-slide-in-right">
-        {/* Enhanced Header */}
-        <div className="relative p-6 bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 text-white overflow-hidden">
+      <div className="w-full max-w-md h-full bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col animate-slide-in-right overflow-hidden backdrop-blur-sm">
+        {/* Enhanced Header with Modern Gradient */}
+        <div 
+          className="flex items-center justify-between p-6 text-white rounded-t-3xl relative overflow-hidden"
+          style={{
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+          }}
+        >
           {/* Background pattern */}
           <div className="absolute inset-0 opacity-10">
-            <div className="absolute top-0 left-0 w-32 h-32 bg-white rounded-full -translate-x-16 -translate-y-16"></div>
-            <div className="absolute bottom-0 right-0 w-24 h-24 bg-white rounded-full translate-x-12 translate-y-12"></div>
+            <div className="absolute top-0 left-0 w-20 h-20 bg-white rounded-full -translate-x-10 -translate-y-10"></div>
+            <div className="absolute bottom-0 right-0 w-16 h-16 bg-white rounded-full translate-x-8 translate-y-8"></div>
           </div>
           
-          <div className="relative flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="relative">
-                <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm border border-white/30">
-                  <ChatBubbleLeftRightIcon className="w-6 h-6" />
-                </div>
-                <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white animate-pulse"></div>
-              </div>
-              <div>
-                <h3 className="font-bold text-lg">AI Assistant</h3>
-                <p className="text-blue-100 text-sm flex items-center">
-                  <SparklesIcon className="w-3 h-3 mr-1" />
-                  Powered by Nowgray
-                </p>
-              </div>
+          <div className="flex items-center space-x-4 relative z-10">
+            <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm border border-white/30">
+              <ChatBubbleLeftRightIcon className="w-7 h-7" />
             </div>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={startNewChat}
-                className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-sm rounded-full transition-all duration-200 hover:scale-105 backdrop-blur-sm border border-white/30"
-              >
-                New Chat
-              </button>
-              <button
-                onClick={onClose}
-                className="p-2 hover:bg-white/20 rounded-full transition-all duration-200 hover:scale-110"
-              >
-                <XMarkIcon className="w-6 h-6" />
-              </button>
+            <div>
+              <h3 className="font-bold text-lg flex items-center">
+                AI Assistant
+                <div className="ml-2 w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              </h3>
+              <p className="text-sm text-white/90 flex items-center">
+                <SparklesIcon className="w-3 h-3 mr-1" />
+                Powered by Nowgray
+              </p>
             </div>
+          </div>
+          
+          <div className="flex items-center space-x-2 relative z-10">
+            <button
+              onClick={startNewChat}
+              className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-sm rounded-full transition-all duration-200 hover:scale-105 backdrop-blur-sm border border-white/30"
+            >
+              New Chat
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-white/20 rounded-xl transition-all duration-200 hover:scale-110"
+            >
+              <XMarkIcon className="w-6 h-6" />
+            </button>
           </div>
         </div>
 
         {/* Enhanced Messages Area */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-gray-50 to-white relative">
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-gray-50 via-white to-gray-50 relative">
           {/* Load More Button */}
           {hasMoreMessages && (
             <div className="flex justify-center mb-4">
@@ -538,7 +545,7 @@ const CompanyChatbot = ({ companyId, isVisible, onClose }) => {
                         value={welcomeFormData.name}
                         onChange={handleWelcomeFormChange}
                         placeholder="Enter your name"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400"
                         required
                       />
                     </div>
@@ -551,7 +558,7 @@ const CompanyChatbot = ({ companyId, isVisible, onClose }) => {
                         value={welcomeFormData.email}
                         onChange={handleWelcomeFormChange}
                         placeholder="Enter your email"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400"
                       />
                     </div>
                     
@@ -561,7 +568,7 @@ const CompanyChatbot = ({ companyId, isVisible, onClose }) => {
                         name="topic"
                         value={welcomeFormData.topic}
                         onChange={handleWelcomeFormChange}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400"
                       >
                         <option value="">Select a topic</option>
                         <option value="General Information">General Information</option>
@@ -575,7 +582,7 @@ const CompanyChatbot = ({ companyId, isVisible, onClose }) => {
                     
                     <button
                       type="submit"
-                      className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium py-3 px-6 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                      className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium py-3 px-6 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
                     >
                       Start Chatting
                     </button>
@@ -590,47 +597,34 @@ const CompanyChatbot = ({ companyId, isVisible, onClose }) => {
           {messages.map((message, index) => (
             <div
               key={message.id}
-              className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} animate-message-slide-in`}
-              style={{ animationDelay: `${index * 0.1}s` }}
+              className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} animate-slide-in`}
+              style={{ animationDelay: `${index * 100}ms` }}
             >
-              <div className="flex items-end space-x-2 max-w-[85%]">
-                {message.type === 'bot' && (
-                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                    <ChatBubbleLeftRightIcon className="w-4 h-4 text-white" />
+              <div
+                className={`max-w-[85%] rounded-2xl px-5 py-4 shadow-lg transform transition-all duration-300 hover:scale-[1.02] ${
+                  message.type === 'user'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-br-lg'
+                    : 'bg-white text-gray-800 rounded-bl-lg border border-gray-100 hover:shadow-xl'
+                }`}
+              >
+                {message.isTyping ? (
+                  <div className="flex items-center space-x-3">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                    </div>
+                    <span className="text-sm text-gray-500">AI is typing...</span>
                   </div>
-                )}
-                
-                <div
-                  className={`rounded-2xl px-4 py-3 shadow-sm ${
-                    message.type === 'user'
-                      ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-br-md'
-                      : 'bg-white text-gray-800 rounded-bl-md border border-gray-100 shadow-md'
-                  }`}
-                >
-                  {message.isTyping ? (
-                    <div className="flex items-center space-x-3">
-                      <div className="flex space-x-1">
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                      </div>
-                      <span className="text-sm text-gray-500 font-medium">AI is thinking...</span>
-                    </div>
-                  ) : (
-                    <div>
-                      <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
-                      <p className={`text-xs mt-2 ${
-                        message.type === 'user' ? 'text-blue-100' : 'text-gray-400'
-                      }`}>
-                        {formatTime(message.timestamp)}
-                      </p>
-                    </div>
-                  )}
-                </div>
-                
-                {message.type === 'user' && (
-                  <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-500 rounded-full flex items-center justify-center flex-shrink-0">
-                    <UserIcon className="w-4 h-4 text-white" />
+                ) : (
+                  <div>
+                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                    <p className={`text-xs mt-2 flex items-center ${
+                      message.type === 'user' ? 'text-blue-100' : 'text-gray-400'
+                    }`}>
+                      <SparklesIcon className="w-3 h-3 mr-1" />
+                      {formatTime(message.timestamp)}
+                    </p>
                   </div>
                 )}
               </div>
@@ -639,20 +633,15 @@ const CompanyChatbot = ({ companyId, isVisible, onClose }) => {
 
           {/* Enhanced Loading indicator */}
           {isLoading && (
-            <div className="flex justify-start animate-message-slide-in">
-              <div className="flex items-end space-x-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
-                  <ChatBubbleLeftRightIcon className="w-4 h-4 text-white" />
-                </div>
-                <div className="bg-white text-gray-800 rounded-2xl rounded-bl-md shadow-md border border-gray-100 px-4 py-3">
-                  <div className="flex items-center space-x-3">
-                    <div className="flex space-x-1">
-                      <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                      <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                      <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                    </div>
-                    <span className="text-sm text-gray-600 font-medium">Searching for answers...</span>
+            <div className="flex justify-start animate-fade-in">
+              <div className="bg-white text-gray-800 rounded-2xl rounded-bl-lg shadow-lg border border-gray-100 px-5 py-4">
+                <div className="flex items-center space-x-3">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                   </div>
+                  <span className="text-sm text-gray-600">Searching for answers...</span>
                 </div>
               </div>
             </div>
@@ -687,7 +676,7 @@ const CompanyChatbot = ({ companyId, isVisible, onClose }) => {
 
         {/* Enhanced Input Area */}
         {!showWelcomeForm && (
-          <div className="p-6 bg-white border-t border-gray-200">
+          <div className="p-6 bg-white border-t border-gray-100 rounded-b-3xl">
             <form onSubmit={handleSubmit} className="flex space-x-3">
               <div className="flex-1 relative">
                 <input
@@ -695,9 +684,9 @@ const CompanyChatbot = ({ companyId, isVisible, onClose }) => {
                   type="text"
                   value={inputValue}
                   onChange={handleInputChange}
-                  placeholder="Ask me anything..."
+                  placeholder="Type your message..."
                   disabled={isLoading}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed shadow-sm transition-all duration-200"
+                  className="w-full px-5 py-3 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed text-sm transition-all duration-200 hover:border-gray-400"
                 />
                 {isLoadingSuggestions && (
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -708,7 +697,7 @@ const CompanyChatbot = ({ companyId, isVisible, onClose }) => {
               <button
                 type="submit"
                 disabled={!inputValue.trim() || isLoading}
-                className="p-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-gray-300 disabled:to-gray-400 text-white rounded-full transition-all duration-200 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none"
+                className="p-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-300 disabled:to-gray-400 text-white rounded-2xl transition-all duration-300 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none"
               >
                 <PaperAirplaneIcon className="w-5 h-5" />
               </button>
@@ -716,6 +705,69 @@ const CompanyChatbot = ({ companyId, isVisible, onClose }) => {
           </div>
         )}
       </div>
+
+      {/* Enhanced Custom CSS */}
+      <style jsx>{`
+        .animate-fade-in {
+          animation: fadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(30px) scale(0.9);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+        
+        .animate-slide-in {
+          animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        .animate-slide-in-right {
+          animation: slideInRight 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        @keyframes slideInRight {
+          from {
+            opacity: 0;
+            transform: translateX(100%);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+        
+        .animate-slide-up {
+          animation: slideUp 0.4s ease-out;
+        }
+        
+        @keyframes slideUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </div>
   );
 };
