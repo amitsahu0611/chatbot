@@ -7,6 +7,7 @@ const Lead = require('./company-admin/lead-viewer/Lead');
 const Form = require('./company-admin/form-builder/Form');
 const FormSubmission = require('./company-admin/form-builder/FormSubmission');
 const ActivityLog = require('./ActivityLog');
+const VisitorSession = require('./widget/VisitorSession');
 
 // Define associations
 Company.hasMany(User, {
@@ -156,6 +157,17 @@ Company.hasMany(ActivityLog, {
   as: 'activities'
 });
 
+// VisitorSession associations
+Company.hasMany(VisitorSession, {
+  foreignKey: 'companyId',
+  as: 'visitorSessions'
+});
+
+VisitorSession.belongsTo(Company, {
+  foreignKey: 'companyId',
+  as: 'company'
+});
+
 module.exports = {
   User,
   Company,
@@ -165,5 +177,6 @@ module.exports = {
   Lead,
   Form,
   FormSubmission,
-  ActivityLog
+  ActivityLog,
+  VisitorSession
 };

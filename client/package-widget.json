@@ -1,0 +1,74 @@
+{
+  "name": "@nowgray/chat-widget",
+  "version": "1.0.0",
+  "description": "Embeddable AI-powered chat widget for any website",
+  "main": "dist/widget/chat-widget.min.js",
+  "scripts": {
+    "build:widget": "webpack --config widget-build.config.js",
+    "build:widget:dev": "NODE_ENV=development webpack --config widget-build.config.js --watch",
+    "serve:widget": "http-server dist/widget -p 8080 --cors -c-1",
+    "test:widget": "jest --config widget.jest.config.js",
+    "lint:widget": "eslint src/embed/ src/components/widget/EmbeddableChatWidget.js",
+    "clean:widget": "rimraf dist/widget"
+  },
+  "keywords": [
+    "chat",
+    "widget", 
+    "ai",
+    "chatbot",
+    "customer-support",
+    "embeddable",
+    "react",
+    "nowgray"
+  ],
+  "author": "Nowgray Inc.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nowgray/chat-widget.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nowgray/chat-widget/issues"
+  },
+  "homepage": "https://nowgray.com/chat-widget",
+  "files": [
+    "dist/widget/**/*",
+    "src/embed/**/*",
+    "README.md"
+  ],
+  "devDependencies": {
+    "@babel/core": "^7.22.0",
+    "@babel/preset-env": "^7.22.0",
+    "@babel/preset-react": "^7.22.0",
+    "@babel/plugin-proposal-class-properties": "^7.18.0",
+    "@babel/plugin-proposal-object-rest-spread": "^7.20.0",
+    "babel-loader": "^9.1.0",
+    "clean-webpack-plugin": "^4.0.0",
+    "css-loader": "^6.8.0",
+    "eslint": "^8.42.0",
+    "eslint-plugin-react": "^7.32.0",
+    "http-server": "^14.1.0",
+    "jest": "^29.5.0",
+    "postcss": "^8.4.0",
+    "postcss-loader": "^7.3.0",
+    "rimraf": "^5.0.0",
+    "style-loader": "^3.3.0",
+    "terser-webpack-plugin": "^5.3.0",
+    "webpack": "^5.88.0",
+    "webpack-cli": "^5.1.0"
+  },
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0"
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead",
+    "not ie < 11"
+  ],
+  "engines": {
+    "node": ">=14.0.0",
+    "npm": ">=6.0.0"
+  }
+}

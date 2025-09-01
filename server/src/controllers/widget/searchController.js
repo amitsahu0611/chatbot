@@ -288,23 +288,24 @@ const generateAIResponse = async (userQuery, relevantFAQs, keywords) => {
 
     // FAQ-Based AI Assistant Prompt
     const systemPrompt = `
-    You are a customer support assistant for Blinkit, a fast grocery delivery service.
+    You are a smart FAQ-based support assistant.
     
     CRITICAL RULES:
-    1. Always use the provided FAQ content as the only source of truth.
-    2. If the FAQ question matches exactly, rephrase the FAQ answer slightly (do not copy word for word).
-    3. If the FAQ is related but not exact, give a short 2-line helpful answer using what you know, then suggest contacting support.
-    4. If there is no relevant FAQ, say politely you don’t have enough info and suggest contacting support.
-    5. Keep responses very short, clear, and under 80 words.
-    6. Always end the message with: "For more details, you can contact our customer care team at support@company.com or call 1-800-123-4567."
-    7. Never invent features or information not present in the FAQs.
+    1. Always interpret the **meaning of the user query** first (not just the keywords).
+    2. Then carefully read the FAQ content to see which one best matches the meaning.
+    3. If multiple FAQs are relevant, pick the one(s) most related to the user’s intent.
+    4. Always answer concisely (max 80 words) and clearly.
+    5. Use FAQ answers as the primary source, but you can rephrase naturally.
+    6. If the FAQ is related but not exact, summarize what is relevant and suggest contacting support.
+    7. If nothing relevant is found, politely say you don’t have enough info and recommend contacting support.
+    8. Never invent information beyond the FAQ content.
+    9. Always end with: "For more details, you can contact our customer care team at support@company.com or call 1-800-123-4567."
+    10. Greetings like “hi” or “hello” should be answered politely, even if no FAQ matches.
     
-    HOW TO RESPOND:
-    - Exact match → concise, slightly rephrased FAQ answer
-    - Related match → 2-liner helpful answer + support contact
-    - No match → “I don’t have enough info” + support contact
-    - If the user question is relevant to the faq questions evaluation and related then answer it by yourself othersiwe i it's not relevant then say contacting support for the rest
-    - Try to be helpful even with partial information from the FAQs
+    EXAMPLE BEHAVIOR:
+    - User: "What services do you provide?"
+    - FAQ: "We offer Blinkit management and setup support."
+    - Response: "We provide Blinkit management services, including setup and support. For more details, you can contact our customer care team at support@company.com or call 1-800-123-4567."
     `;
     
     
@@ -317,14 +318,20 @@ Answer: ${faq.answer}
 Category: ${faq.category}`
     ).join('\n\n');
 
-    const userPrompt = `User Question: "${userQuery}"
-
-Relevant FAQs from our knowledge base:
-${faqContext}
-
-Please provide a helpful answer based on the above FAQ content. If the FAQs contain relevant information, use it to answer the question. If the FAQs don't contain the specific answer but have related information, provide what you can and suggest contacting support for more details. 
-
-IMPORTANT: If you find any relevant information in the FAQs, use it to provide a helpful response. Only say "I don't have enough information" if there's truly no relevant content in the FAQs at all.`;
+    const userPrompt = `
+    User Question: "${userQuery}"
+    
+    Relevant FAQs:
+    ${faqContext}
+    
+    TASK:
+    1. First, interpret the meaning of the user’s query.
+    2. Then compare it with the FAQ questions/answers.
+    3. Formulate a helpful answer using FAQ content that matches the intent.
+    4. If there’s partial relevance, answer with what’s available and suggest contacting support.
+    5. If there’s no relevance at all, politely decline and suggest contacting support.
+    `;
+    
 
     const requestBody = {
       model: process.env.OPENAI_MODEL || "gpt-4o-mini",

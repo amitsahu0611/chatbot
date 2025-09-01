@@ -6,6 +6,8 @@ const router = express.Router();
 const searchRoutes = require('./search');
 const chatRoutes = require('./chat');
 const formRoutes = require('./form');
+const embedRoutes = require('./embed');
+const sessionRoutes = require('./session');
 const themeSettingsRoutes = require('../company-admin/theme-settings');
 
 /**
@@ -232,6 +234,8 @@ router.get('/health', (req, res) => {
 router.use('/search', searchRoutes);
 router.use('/chat', chatRoutes);
 router.use('/form', formRoutes);
+router.use('/embed', embedRoutes);
+router.use('/session', sessionRoutes);
 router.use('/theme', themeSettingsRoutes);
 
 module.exports = router;

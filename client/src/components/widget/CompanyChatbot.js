@@ -15,10 +15,13 @@ const CompanyChatbot = ({ companyId, isVisible, onClose }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
   const [sessionId, setSessionId] = useState(null);
+  const [sessionToken, setSessionToken] = useState(null);
+  const [visitorInfo, setVisitorInfo] = useState(null);
   const [showWelcomeForm, setShowWelcomeForm] = useState(false);
   const [welcomeFormData, setWelcomeFormData] = useState({
     name: '',
     email: '',
+    phone: '',
     topic: ''
   });
   const messagesEndRef = useRef(null);
@@ -44,13 +47,14 @@ const CompanyChatbot = ({ companyId, isVisible, onClose }) => {
     setInputValue('');
   };
 
-  // Load chat history
+  // Load chat history with simplified logic - check history first, show form if none exists
   const loadChatHistory = async (page = 1) => {
     if (page === 1) {
       setIsLoadingHistory(true);
     }
 
     try {
+      // First try to load chat history for this company
       const response = await fetch(`${API_URL}/api/widget/search/history?companyId=${companyId || 6}&page=${page}&limit=20`, {
         method: 'GET',
         headers: {
@@ -60,32 +64,71 @@ const CompanyChatbot = ({ companyId, isVisible, onClose }) => {
 
       const data = await response.json();
 
-      if (data.success) {
+      if (data.success && data.data.messages && data.data.messages.length > 0) {
+        // Has chat history - load it
         if (page === 1) {
-          // First load - replace messages
           setMessages(data.data.messages);
           setCurrentPage(1);
         } else {
-          // Pagination - prepend messages
           setMessages(prev => [...data.data.messages, ...prev]);
         }
         
-        setHasMoreMessages(data.data.pagination.hasMore);
+        setHasMoreMessages(data.data.pagination?.hasMore || false);
         setSessionId(data.data.currentSessionId);
         
-        // Show welcome form if no history
-        if (data.data.messages.length === 0) {
+        // Also check session for visitor info
+        if (page === 1) {
+          checkSession();
+        }
+      } else {
+        // No chat history - show registration form for this company
+        if (page === 1) {
+          setMessages([]);
           setShowWelcomeForm(true);
+          // Still create a session for tracking
+          checkSession();
         }
       }
     } catch (error) {
       console.error('Error loading chat history:', error);
-      // Show welcome form on error
       if (page === 1) {
+        // On error, show registration form as fallback
         setShowWelcomeForm(true);
+        checkSession();
       }
     } finally {
       setIsLoadingHistory(false);
+    }
+  };
+
+  // Check and create session
+  const checkSession = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/widget/session/check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId: companyId || 6,
+          sessionDurationMinutes: 120
+        })
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        setSessionToken(data.data.sessionToken);
+        if (data.data.hasActiveSession && data.data.visitorInfo) {
+          setVisitorInfo(data.data.visitorInfo);
+          // Pre-populate form with existing visitor info
+          setWelcomeFormData({
+            name: data.data.visitorInfo.name || '',
+            email: data.data.visitorInfo.email || '',
+            phone: data.data.visitorInfo.phone || '',
+            topic: data.data.visitorInfo.topic || ''
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Session check error:', error);
     }
   };
 
@@ -121,8 +164,28 @@ const CompanyChatbot = ({ companyId, isVisible, onClose }) => {
       if (data.success) {
         setSessionId(data.data.sessionId);
       }
+      
+      // Update session activity
+      if (sessionToken) {
+        updateSessionActivity();
+      }
     } catch (error) {
       console.error('Error storing message:', error);
+    }
+  };
+
+  // Update session activity
+  const updateSessionActivity = async () => {
+    try {
+      await fetch(`${API_URL}/api/widget/session/activity`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionToken: sessionToken
+        })
+      });
+    } catch (error) {
+      console.error('Error updating session activity:', error);
     }
   };
 
@@ -377,49 +440,74 @@ const CompanyChatbot = ({ companyId, isVisible, onClose }) => {
   // Handle welcome form submission
   const handleWelcomeFormSubmit = async (e) => {
     e.preventDefault();
-    const { name, email, topic } = welcomeFormData;
+    const { name, email, phone, topic } = welcomeFormData;
+    
+    if (!name) {
+      alert('Please enter your name to continue.');
+      return;
+    }
     
     try {
-      // Create lead in the database
-      const leadResponse = await fetch(`${API_URL}/api/widget/search/lead/public`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          name,
-          email,
-          topic,
-          companyId: companyId || 6, // Using companyId from context or default 6
-          formData: welcomeFormData,
-          formType: 'chatbot_welcome',
-          source: 'Chatbot Welcome Form'
-        })
-      });
-
-      const leadData = await leadResponse.json();
-      
-      if (leadData.success) {
-        console.log('✅ Lead created successfully:', leadData.data);
+      // Register visitor with session
+      if (sessionToken) {
+        const response = await fetch(`${API_URL}/api/widget/session/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionToken: sessionToken,
+            visitorName: name,
+            visitorEmail: email,
+            visitorPhone: phone,
+            topic: topic,
+            companyId: companyId || 6
+          })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          setVisitorInfo(data.data.visitorInfo);
+          console.log('✅ Visitor registered successfully');
+        }
       } else {
-        console.error('❌ Failed to create lead:', leadData.message);
+        // Fallback - create lead directly
+        const leadResponse = await fetch(`${API_URL}/api/widget/search/lead/public`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name,
+            email,
+            phone,
+            topic,
+            companyId: companyId || 6,
+            formData: welcomeFormData,
+            formType: 'chatbot_welcome',
+            source: 'Chatbot Welcome Form'
+          })
+        });
+
+        const leadData = await leadResponse.json();
+        if (leadData.success) {
+          console.log('✅ Lead created successfully:', leadData.data);
+        }
       }
     } catch (error) {
-      console.error('❌ Error creating lead:', error);
+      console.error('❌ Error registering visitor:', error);
     }
     
     // Add welcome message with user info
     const welcomeMessage = {
       id: 'welcome',
       type: 'bot',
-      content: `Hello ${name}! 👋 Welcome to our AI assistant. I'm here to help you with any questions about our services.${topic ? ` I see you're interested in ${topic}.` : ''} How can I assist you today?`,
+      content: `Hello ${name}! 👋 Thank you for providing your information. I'm here to help you${topic ? ` with ${topic.toLowerCase()}` : ''}. What questions do you have for me?`,
       timestamp: new Date(),
       isTyping: false
     };
 
     setMessages([welcomeMessage]);
     setShowWelcomeForm(false);
-    setWelcomeFormData({ name: '', email: '', topic: '' });
+    setWelcomeFormData({ name: '', email: '', phone: '', topic: '' });
     
     // Store the welcome message
     storeMessage('bot', welcomeMessage.content);
@@ -558,6 +646,18 @@ const CompanyChatbot = ({ companyId, isVisible, onClose }) => {
                         value={welcomeFormData.email}
                         onChange={handleWelcomeFormChange}
                         placeholder="Enter your email"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Phone (Optional)</label>
+                      <input
+                        type="tel"
+                        name="phone"
+                        value={welcomeFormData.phone}
+                        onChange={handleWelcomeFormChange}
+                        placeholder="Enter your phone"
                         className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400"
                       />
                     </div>

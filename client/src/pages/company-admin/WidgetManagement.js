@@ -166,7 +166,10 @@ const WidgetManagement = () => {
     const widgetId = `widget_${companyId}_${Date.now()}`;
     const serverUrl = API_URL; // Use the configured API URL
     
-    return `<script src="${serverUrl}/api/widget/chat.js" data-widget-id="${widgetId}" data-company-id="${companyId}" data-api-url="${serverUrl}"></script>`;
+    // Create the dynamic script URL with configuration parameters
+    const scriptUrl = `${serverUrl}/api/widget/embed/script?companyId=${companyId}&widgetId=${widgetId}&position=${widgetSettings.position}&primaryColor=${encodeURIComponent(widgetSettings.primaryColor)}&secondaryColor=${encodeURIComponent('#764ba2')}`;
+    
+    return `<script src="${scriptUrl}"></script>`;
   };
 
   // Copy embed code
@@ -415,13 +418,37 @@ const WidgetManagement = () => {
           </div>
 
           {/* Usage Instructions */}
-          <div className="mt-4 p-3 bg-gray-50 rounded-md">
-            <h4 className="text-sm font-medium text-gray-700 mb-2">🚀 How to Use:</h4>
-            <div className="text-xs text-gray-600 space-y-1">
+          <div className="mt-4 p-3 bg-blue-50 rounded-md border border-blue-200">
+            <h4 className="text-sm font-medium text-blue-800 mb-2">🚀 How to Use:</h4>
+            <div className="text-xs text-blue-700 space-y-1">
               <div>1. Copy the script tag above</div>
               <div>2. Paste it before the closing &lt;/body&gt; tag in your HTML</div>
               <div>3. The widget will automatically appear on your website</div>
-              <div>4. All chat messages will be linked to Company ID: <span className="font-mono font-bold">{getCurrentCompanyId()}</span></div>
+              <div>4. All chat data will be linked to Company ID: <span className="font-mono font-bold bg-blue-100 px-1 rounded">{getCurrentCompanyId()}</span></div>
+              <div>5. The widget uses your existing FAQs and AI responses</div>
+            </div>
+          </div>
+
+          <div className="mt-3 p-3 bg-green-50 rounded-md border border-green-200">
+            <h4 className="text-sm font-medium text-green-800 mb-2">✨ Features Included:</h4>
+            <div className="text-xs text-green-700 space-y-1">
+              <div>• AI-powered responses using your company's FAQ database</div>
+              <div>• Smart suggestions based on user input</div>
+              <div>• Lead capture with welcome form</div>
+              <div>• Chat history and session management</div>
+              <div>• Real-time typing indicators</div>
+              <div>• Fully responsive design (mobile, tablet, desktop)</div>
+              <div>• Customizable colors and position</div>
+            </div>
+          </div>
+
+          <div className="mt-3 p-3 bg-amber-50 rounded-md border border-amber-200">
+            <h4 className="text-sm font-medium text-amber-800 mb-2">🔧 Advanced Options:</h4>
+            <div className="text-xs text-amber-700 space-y-1">
+              <div>• To change colors: Update the settings above and generate new code</div>
+              <div>• To change position: Select from dropdown above</div>
+              <div>• For custom integration: Use our JavaScript API</div>
+              <div>• Need help? Contact support with Company ID: <span className="font-mono">{getCurrentCompanyId()}</span></div>
             </div>
           </div>
 

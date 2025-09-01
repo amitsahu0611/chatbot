@@ -7,6 +7,7 @@ const rateLimit = require('express-rate-limit');
 const slowDown = require('express-slow-down');
 const xss = require('xss-clean');
 const hpp = require('hpp');
+const path = require('path');
 
 require('express-async-errors');
 require('dotenv').config({ path: './config.env' });
@@ -36,7 +37,42 @@ require('./models');
 // Security middleware
 app.use(helmet({
   crossOriginEmbedderPolicy: false,
-  crossOriginResourcePolicy: { policy: "cross-origin" }
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: process.env.NODE_ENV === 'development' ? false : {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: [
+        "'self'",
+        "'unsafe-inline'", // Allow inline scripts for widget demos
+        "'unsafe-eval'", // Allow eval for widget functionality
+        "https://unpkg.com", // Allow React CDN
+        "https://cdn.jsdelivr.net", // Allow other CDNs
+      ],
+      styleSrc: [
+        "'self'",
+        "'unsafe-inline'", // Allow inline styles for widget styling
+        "https://fonts.googleapis.com",
+      ],
+      fontSrc: [
+        "'self'",
+        "https://fonts.gstatic.com",
+      ],
+      imgSrc: [
+        "'self'",
+        "data:",
+        "https:",
+      ],
+      connectSrc: [
+        "'self'",
+        "http://localhost:5001", // Allow API connections
+        "http://localhost:5173", // Allow dev server
+        "ws://localhost:*", // Allow websockets
+      ],
+      frameSrc: ["'none'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+    },
+  },
 }));
 
 // CORS configuration
@@ -112,6 +148,25 @@ app.get('/health', (req, res) => {
     environment: process.env.NODE_ENV
   });
 });
+
+// Serve static files from public directory
+app.use(express.static(path.join(__dirname, '../public'), {
+  setHeaders: (res, filePath) => {
+    // Set appropriate CORS headers for widget files
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    
+    // Set cache headers
+    if (filePath.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript');
+      res.setHeader('Cache-Control', 'public, max-age=3600'); // 1 hour cache
+    } else if (filePath.endsWith('.html')) {
+      res.setHeader('Content-Type', 'text/html');
+      res.setHeader('Cache-Control', 'no-cache'); // No cache for HTML
+    }
+  }
+}));
 
 // API routes
 app.use('/api/auth', authRoutes);
