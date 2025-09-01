@@ -60,6 +60,11 @@ const ensureTable = async () => {
  */
 const checkSession = async (req, res) => {
   try {
+    // Set CORS headers for widget endpoints
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
     // Ensure table exists first
     await ensureTable();
     
@@ -171,6 +176,11 @@ const checkSession = async (req, res) => {
  */
 const registerVisitor = async (req, res) => {
   try {
+    // Set CORS headers for widget endpoints
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
     // Ensure table exists first
     await ensureTable();
     
@@ -183,10 +193,12 @@ const registerVisitor = async (req, res) => {
       companyId 
     } = req.body;
 
+    console.log('📝 Registration request body:', req.body);
+
     if (!sessionToken) {
       return res.status(400).json({
         success: false,
-        message: 'Session token is required'
+        message: 'Session token is required. Please ensure you have an active session before registering.'
       });
     }
 
@@ -228,29 +240,66 @@ const registerVisitor = async (req, res) => {
       try {
         const Lead = require('../../models/company-admin/lead-viewer/Lead');
         
-        await Lead.create({
-          name: visitorName || 'Anonymous Visitor',
-          email: visitorEmail,
-          phone: visitorPhone || '',
-          companyId: companyId,
-          source: 'Chat Widget',
-          status: 'new',
-          formData: {
-            topic: topic,
-            sessionToken: sessionToken,
-            ipAddress: session.ipAddress,
-            userAgent: session.userAgent
-          },
-          formType: 'chat_widget_registration',
-          submittedAt: new Date()
+        // Generate a unique visitor ID from session token or create one
+        const visitorId = sessionToken || `visitor_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        console.log('🔍 Debug Lead Creation:', {
+          sessionToken: sessionToken,
+          visitorId: visitorId,
+          visitorEmail: visitorEmail,
+          companyId: companyId
         });
         
+        // Ensure visitorId is never null or undefined
+        const finalVisitorId = visitorId || `visitor_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        // Validate companyId
+        const parsedCompanyId = parseInt(companyId);
+        if (!parsedCompanyId || isNaN(parsedCompanyId)) {
+          console.error('❌ Invalid companyId:', companyId);
+          throw new Error('Invalid companyId provided');
+        }
+        
+        const leadData = {
+          visitorId: finalVisitorId,
+          name: visitorName || 'Anonymous Visitor',
+          email: visitorEmail,
+          phone: visitorPhone || null,
+          companyId: parsedCompanyId,
+          source: 'Chat Widget',
+          status: 'new',
+          ipAddress: session.ipAddress,
+          userAgent: session.userAgent,
+          sessionId: sessionToken,
+          firstVisit: session.firstVisit || new Date(),
+          lastVisit: new Date(),
+          lastActivity: new Date(),
+          // Store additional information in metadata
+          metadata: {
+            topic: topic,
+            sessionToken: sessionToken,
+            registrationSource: 'chat_widget',
+            registeredAt: new Date()
+          }
+        };
+
+        console.log('🔄 Attempting to create lead with data:', JSON.stringify(leadData, null, 2));
+        
+        const lead = await Lead.create(leadData);
+        
         session.leadCreated = true;
+        // session.leadId = lead.id; // Store lead ID in session for reference (commented out until column exists)
         await session.save();
         
-        console.log('✅ Lead created from chat widget registration');
+        console.log('✅ Lead created from chat widget registration:', {
+          leadId: lead.id,
+          visitorId: finalVisitorId,
+          email: visitorEmail,
+          name: visitorName
+        });
       } catch (leadError) {
         console.error('❌ Failed to create lead:', leadError);
+        console.error('Lead error details:', leadError.message);
         // Don't fail the request if lead creation fails
       }
     }
@@ -300,6 +349,11 @@ const registerVisitor = async (req, res) => {
  */
 const updateActivity = async (req, res) => {
   try {
+    // Set CORS headers for widget endpoints
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
     const { sessionToken } = req.body;
 
     if (!sessionToken) {
@@ -363,6 +417,28 @@ const cleanupSessions = async (req, res) => {
     });
   }
 };
+
+// Handle preflight OPTIONS requests
+router.options('/check', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.status(200).end();
+});
+
+router.options('/register', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.status(200).end();
+});
+
+router.options('/activity', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.status(200).end();
+});
 
 // Routes
 router.post('/check', checkSession);

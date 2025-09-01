@@ -10,10 +10,12 @@ const {
 // Import sub-routes
 const companiesRoutes = require('./companies');
 const usersRoutes = require('./users');
+const formsRoutes = require('./forms');
 
 // Mount sub-routes
 router.use('/companies', companiesRoutes);
 router.use('/users', usersRoutes);
+router.use('/forms', formsRoutes);
 
 // Super admin dashboard routes
 router.get('/dashboard/stats', auth, getDashboardStats);

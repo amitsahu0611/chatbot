@@ -11,6 +11,7 @@ import {
   ClockIcon,
   FireIcon
 } from '@heroicons/react/24/outline';
+import { API_URL } from '../../../utils/config';
 
 const UnansweredQueries = ({ isOpen, onClose }) => {
   const { user, getCurrentCompanyId } = useAuth();
@@ -26,7 +27,6 @@ const UnansweredQueries = ({ isOpen, onClose }) => {
   const [selectedQuery, setSelectedQuery] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
 
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
   useEffect(() => {
     const companyId = getCurrentCompanyId();

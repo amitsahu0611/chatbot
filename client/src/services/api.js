@@ -1,9 +1,10 @@
 import axios from 'axios';
+import { API_URL } from '../utils/config';
 
 // Create axios instance with base configuration
 const api = axios.create({
   // baseURL:  'http://localhost:5001/api',
-  baseURL:  'https://api-chatbot.nowgray.live/api',
+  baseURL:  `${API_URL}/api`,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',

@@ -8,6 +8,7 @@ const chatRoutes = require('./chat');
 const formRoutes = require('./form');
 const embedRoutes = require('./embed');
 const sessionRoutes = require('./session');
+const enhancedChatRoutes = require('./enhancedChat');
 const themeSettingsRoutes = require('../company-admin/theme-settings');
 
 /**
@@ -236,6 +237,7 @@ router.use('/chat', chatRoutes);
 router.use('/form', formRoutes);
 router.use('/embed', embedRoutes);
 router.use('/session', sessionRoutes);
+router.use('/enhanced-chat', enhancedChatRoutes);
 router.use('/theme', themeSettingsRoutes);
 
 module.exports = router;

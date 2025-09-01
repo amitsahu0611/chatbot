@@ -83,10 +83,12 @@ const getWidgetScript = async (req, res) => {
       apiUrl
     });
 
-    // Set appropriate headers
+    // Set appropriate headers (no cache for development)
     res.set({
       'Content-Type': 'application/javascript',
-      'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET',
       'Access-Control-Allow-Headers': 'Content-Type'
@@ -221,6 +223,7 @@ function generateWidgetScript(config) {
       this.loadStyles();
       this.createWidget();
       this.loadChatHistory();
+      this.setupScrollHandlers();
       this.isLoaded = true;
       
       console.log('✅ Nowgray Chat Widget loaded for Company:', this.config.companyId);
@@ -260,7 +263,15 @@ function generateWidgetScript(config) {
                   <p>Powered by Nowgray</p>
                 </div>
               </div>
+                          <div class="nowgray-header-actions">
+              <button class="nowgray-history-btn" onclick="NowgrayChatWidget.toggleHistoryView()" title="Chat History">
+                📜
+              </button>
+              <button class="nowgray-new-chat-btn" onclick="NowgrayChatWidget.startNewChat()" title="Start New Chat">
+                🔄
+              </button>
               <button class="nowgray-close-btn" onclick="NowgrayChatWidget.toggleChat()">×</button>
+            </div>
             </div>
             
             <!-- Messages Area -->
@@ -305,6 +316,8 @@ function generateWidgetScript(config) {
       return positions[this.config.position] || 'pos-bottom-right';
     },
     
+
+    
     // Load CSS styles
     loadStyles: function() {
       if (document.getElementById('nowgray-widget-styles')) return;
@@ -345,8 +358,8 @@ function generateWidgetScript(config) {
         
         .nowgray-chat-window {
           position: absolute;
-          width: 380px;
-          height: 600px;
+          width: 420px;
+          height: 650px;
           background: white;
           border-radius: 20px;
           box-shadow: 0 10px 30px rgba(0,0,0,0.3);
@@ -383,6 +396,54 @@ function generateWidgetScript(config) {
           display: flex;
           justify-content: space-between;
           align-items: center;
+        }
+        
+        .nowgray-header-actions {
+          display: flex;
+          gap: 10px;
+          align-items: center;
+        }
+        
+        .nowgray-history-btn {
+          background: rgba(255,255,255,0.2);
+          border: 1px solid rgba(255,255,255,0.3);
+          color: white;
+          font-size: 14px;
+          cursor: pointer;
+          padding: 8px;
+          border-radius: 50%;
+          width: 36px;
+          height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s;
+        }
+        
+        .nowgray-history-btn:hover {
+          background: rgba(255,255,255,0.3);
+          transform: scale(1.1);
+        }
+        
+        .nowgray-new-chat-btn {
+          background: rgba(255,255,255,0.2);
+          border: 1px solid rgba(255,255,255,0.3);
+          color: white;
+          font-size: 16px;
+          cursor: pointer;
+          padding: 8px;
+          border-radius: 50%;
+          width: 36px;
+          height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s;
+        }
+        
+        .nowgray-new-chat-btn:hover {
+          background: rgba(255,255,255,0.3);
+          transform: rotate(180deg);
         }
         
         .nowgray-header-content {
@@ -465,12 +526,160 @@ function generateWidgetScript(config) {
           justify-content: flex-start;
         }
         
+        .nowgray-message.system {
+          justify-content: center;
+          margin: 15px 0;
+        }
+        
         .nowgray-message-content {
           max-width: 85%;
           padding: 12px 16px;
           border-radius: 18px;
           font-size: 14px;
           line-height: 1.4;
+          position: relative;
+        }
+        
+        .nowgray-message-reactions {
+          display: flex;
+          gap: 8px;
+          margin-top: 8px;
+          opacity: 0;
+          transition: opacity 0.2s;
+        }
+        
+        .nowgray-message:hover .nowgray-message-reactions {
+          opacity: 1;
+        }
+        
+        .nowgray-reaction-btn {
+          background: rgba(255,255,255,0.9);
+          border: 1px solid #e5e7eb;
+          border-radius: 16px;
+          padding: 4px 8px;
+          font-size: 12px;
+          cursor: pointer;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+        
+        .nowgray-reaction-btn:hover {
+          background: \${this.config.primaryColor};
+          color: white;
+          border-color: \${this.config.primaryColor};
+        }
+        
+        .nowgray-quick-replies {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin: 15px 0;
+          padding: 0 20px;
+        }
+        
+        .nowgray-quick-reply-btn {
+          background: rgba(59, 130, 246, 0.1);
+          color: \${this.config.primaryColor};
+          border: 1px solid rgba(59, 130, 246, 0.3);
+          border-radius: 20px;
+          padding: 8px 16px;
+          font-size: 13px;
+          cursor: pointer;
+          transition: all 0.2s;
+          white-space: nowrap;
+        }
+        
+        .nowgray-quick-reply-btn:hover {
+          background: \${this.config.primaryColor};
+          color: white;
+          transform: translateY(-1px);
+        }
+        
+
+        
+        .nowgray-typing-indicator {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 12px 16px;
+          background: #f1f5f9;
+          border-radius: 18px;
+          margin: 10px 0;
+          font-size: 13px;
+          color: #64748b;
+        }
+        
+        .nowgray-session-separator {
+          display: flex;
+          align-items: center;
+          margin: 20px 0;
+          opacity: 0.7;
+        }
+        
+        .nowgray-separator-line {
+          flex: 1;
+          height: 1px;
+          background: linear-gradient(to right, transparent, #ddd, transparent);
+        }
+        
+        .nowgray-separator-text {
+          padding: 0 15px;
+          font-size: 12px;
+          color: #888;
+          background: #f8fafc;
+          border-radius: 12px;
+          padding: 4px 12px;
+          white-space: nowrap;
+        }
+        
+        .nowgray-load-more-indicator {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          padding: 15px;
+          color: #666;
+          font-size: 13px;
+          background: rgba(59, 130, 246, 0.05);
+          border-radius: 8px;
+          margin: 10px 0;
+        }
+        
+        .nowgray-history-end {
+          display: flex;
+          align-items: center;
+          margin: 15px 0;
+          opacity: 0.5;
+        }
+        
+        .nowgray-typing-dots {
+          display: flex;
+          gap: 3px;
+        }
+        
+        .nowgray-typing-dot {
+          width: 6px;
+          height: 6px;
+          background: \${this.config.primaryColor};
+          border-radius: 50%;
+          animation: nowgray-typing 1.5s infinite;
+        }
+        
+        .nowgray-typing-dot:nth-child(2) {
+          animation-delay: 0.2s;
+        }
+        
+        .nowgray-typing-dot:nth-child(3) {
+          animation-delay: 0.4s;
+        }
+        
+        .nowgray-message-timestamp {
+          font-size: 10px;
+          opacity: 0.7;
+          margin-top: 4px;
+          display: block;
         }
         
         .nowgray-message.user .nowgray-message-content {
@@ -543,6 +752,11 @@ function generateWidgetScript(config) {
           to { opacity: 1; transform: translateY(0) scale(1); }
         }
         
+        @keyframes nowgray-typing {
+          0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+          30% { transform: translateY(-10px); opacity: 1; }
+        }
+        
         @media (max-width: 640px) {
           .nowgray-chat-window {
             width: 100vw !important;
@@ -582,9 +796,20 @@ function generateWidgetScript(config) {
         const data = await response.json();
         
         if (data.success && data.data.messages && data.data.messages.length > 0) {
-          // Has chat history - load it
-          this.messages = data.data.messages;
+          // Has chat history - load it and process sessions
+          this.messages = this.groupMessagesBySessions(data.data.messages);
           this.currentSessionId = data.data.currentSessionId;
+          
+          // Enhance the last bot message with features if it doesn't have them
+          const lastMessage = this.messages[this.messages.length - 1];
+          if (lastMessage && lastMessage.type === 'bot' && !lastMessage.quickReplies) {
+            lastMessage.quickReplies = [
+              'What else can you help with?',
+              'How can I contact you?',
+              'Tell me more about your services'
+            ];
+          }
+          
           this.renderMessages();
           
           // Also check session for visitor info
@@ -643,6 +868,157 @@ function generateWidgetScript(config) {
       const loading = document.getElementById('nowgray-loading');
       if (loading) loading.style.display = 'none';
     },
+
+    // Group messages by sessions for better display
+    groupMessagesBySessions: function(messages) {
+      if (!messages || messages.length === 0) return [];
+      
+      const sessions = {};
+      const sessionOrder = [];
+      
+      // Group messages by sessionId or timestamp proximity
+      messages.forEach(message => {
+        const sessionKey = message.sessionId || 'default';
+        if (!sessions[sessionKey]) {
+          sessions[sessionKey] = [];
+          sessionOrder.push(sessionKey);
+        }
+        sessions[sessionKey].push(message);
+      });
+      
+      // Create grouped messages with session separators
+      const groupedMessages = [];
+      
+      sessionOrder.forEach((sessionKey, sessionIndex) => {
+        const sessionMessages = sessions[sessionKey];
+        if (sessionMessages.length === 0) return;
+        
+        // Add session separator if this is not the first session
+        if (sessionIndex > 0) {
+          const firstMessage = sessionMessages[0];
+          const sessionDate = new Date(firstMessage.timestamp);
+          groupedMessages.push({
+            id: \`session-separator-\${sessionKey}\`,
+            type: 'session-separator',
+            content: \`Previous conversation from \${this.formatDate(sessionDate)}\`,
+            timestamp: firstMessage.timestamp,
+            sessionId: sessionKey
+          });
+        }
+        
+        // Add all messages from this session
+        sessionMessages.forEach(message => {
+          groupedMessages.push(message);
+        });
+      });
+      
+      return groupedMessages;
+    },
+
+    // Format date for session separators
+    formatDate: function(date) {
+      const now = new Date();
+      const messageDate = new Date(date);
+      const diffTime = now - messageDate;
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 0) {
+        return 'earlier today';
+      } else if (diffDays === 1) {
+        return 'yesterday';
+      } else if (diffDays < 7) {
+        return \`\${diffDays} days ago\`;
+      } else {
+        return messageDate.toLocaleDateString();
+      }
+    },
+
+    // Setup scroll handlers for loading more history
+    setupScrollHandlers: function() {
+      const messagesContainer = document.getElementById('nowgray-messages');
+      if (!messagesContainer) return;
+      
+      let isLoadingMore = false;
+      let currentPage = 1;
+      let hasMoreHistory = true;
+      
+      messagesContainer.addEventListener('scroll', async () => {
+        // Check if scrolled to top and can load more
+        if (messagesContainer.scrollTop === 0 && !isLoadingMore && hasMoreHistory) {
+          isLoadingMore = true;
+          currentPage++;
+          
+          try {
+            await this.loadMoreHistory(currentPage);
+          } catch (error) {
+            console.error('Error loading more history:', error);
+            hasMoreHistory = false;
+          } finally {
+            isLoadingMore = false;
+          }
+        }
+      });
+    },
+
+    // Load more chat history (pagination)
+    loadMoreHistory: async function(page = 2) {
+      try {
+        const response = await fetch(\`\${this.config.apiUrl}/api/widget/search/history?companyId=\${this.config.companyId}&page=\${page}&limit=20\`);
+        const data = await response.json();
+        
+        if (data.success && data.data.messages && data.data.messages.length > 0) {
+          // Show loading indicator at top
+          const messagesContainer = document.getElementById('nowgray-messages');
+          const loadingHtml = \`
+            <div id="nowgray-load-more-indicator" class="nowgray-load-more-indicator">
+              <div class="nowgray-spinner"></div>
+              <span>Loading more history...</span>
+            </div>
+          \`;
+          messagesContainer.insertAdjacentHTML('afterbegin', loadingHtml);
+          
+          // Store current scroll height
+          const oldScrollHeight = messagesContainer.scrollHeight;
+          
+          // Process and prepend older messages
+          const olderMessages = this.groupMessagesBySessions(data.data.messages);
+          this.messages = [...olderMessages, ...this.messages];
+          
+          // Remove loading indicator and re-render
+          setTimeout(() => {
+            const loadingIndicator = document.getElementById('nowgray-load-more-indicator');
+            if (loadingIndicator) loadingIndicator.remove();
+            
+            this.renderMessages();
+            
+            // Maintain scroll position
+            const newScrollHeight = messagesContainer.scrollHeight;
+            messagesContainer.scrollTop = newScrollHeight - oldScrollHeight;
+          }, 500);
+          
+          // Check if there's more history available
+          if (!data.data.pagination.hasMore) {
+            // Add "end of history" indicator
+            setTimeout(() => {
+              const endOfHistoryHtml = \`
+                <div class="nowgray-history-end">
+                  <div class="nowgray-separator-line"></div>
+                  <div class="nowgray-separator-text">📜 Beginning of conversation history</div>
+                  <div class="nowgray-separator-line"></div>
+                </div>
+              \`;
+              messagesContainer.insertAdjacentHTML('afterbegin', endOfHistoryHtml);
+            }, 600);
+            return false; // No more history
+          }
+          
+          return true; // More history available
+        }
+      } catch (error) {
+        console.error('Error loading more history:', error);
+        return false;
+      }
+    },
     
     // Show welcome message
     showWelcomeMessage: function() {
@@ -650,7 +1026,13 @@ function generateWidgetScript(config) {
         id: 'welcome',
         type: 'bot',
         content: 'Hello! 👋 Welcome to our AI assistant. How can I help you today?',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+
+        quickReplies: [
+          'What services do you offer?',
+          'How much does it cost?',
+          'How can I contact you?'
+        ]
       };
       this.messages = [welcomeMessage];
       this.renderMessages();
@@ -663,7 +1045,13 @@ function generateWidgetScript(config) {
         id: 'welcome-back',
         type: 'bot',
         content: \`Welcome back, \${name}! 👋 I'm glad to see you again. How can I assist you today?\`,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+
+        quickReplies: [
+          'What is new?',
+          'I need help with something',
+          'Check my previous questions'
+        ]
       };
       this.messages = [welcomeMessage];
       this.renderMessages();
@@ -718,7 +1106,7 @@ function generateWidgetScript(config) {
                   transition: border-color 0.2s;
                   outline: none;
                 "
-                onfocus="this.style.borderColor='\${this.config.primaryColor}'"
+                onfocus="this.style.borderColor='#3b82f6'"
                 onblur="this.style.borderColor='#e5e7eb'"
               />
             </div>
@@ -737,7 +1125,7 @@ function generateWidgetScript(config) {
                   transition: border-color 0.2s;
                   outline: none;
                 "
-                onfocus="this.style.borderColor='\${this.config.primaryColor}'"
+                onfocus="this.style.borderColor='#3b82f6'"
                 onblur="this.style.borderColor='#e5e7eb'"
               />
             </div>
@@ -756,7 +1144,7 @@ function generateWidgetScript(config) {
                   transition: border-color 0.2s;
                   outline: none;
                 "
-                onfocus="this.style.borderColor='\${this.config.primaryColor}'"
+                onfocus="this.style.borderColor='#3b82f6'"
                 onblur="this.style.borderColor='#e5e7eb'"
               />
             </div>
@@ -774,7 +1162,7 @@ function generateWidgetScript(config) {
                   transition: border-color 0.2s;
                   outline: none;
                 "
-                onfocus="this.style.borderColor='\${this.config.primaryColor}'"
+                onfocus="this.style.borderColor='#3b82f6'"
                 onblur="this.style.borderColor='#e5e7eb'"
               >
                 <option value="">What can I help you with?</option>
@@ -802,8 +1190,8 @@ function generateWidgetScript(config) {
                 transition: all 0.3s ease;
                 box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
               "
-              onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(102, 126, 234, 0.4)'"
-              onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(102, 126, 234, 0.3)'"
+              onmouseover="this.style.transform='translateY(-2px)'"
+              onmouseout="this.style.transform='translateY(0)'"
             >
               🚀 Start Chatting
             </button>
@@ -861,12 +1249,18 @@ function generateWidgetScript(config) {
         if (data.success) {
           this.visitorInfo = data.data.visitorInfo;
           
-          // Show welcome message
+          // Show enhanced welcome message with new features
           const welcomeMessage = {
             id: 'registration-welcome',
             type: 'bot',
             content: \`Hello \${name}! 👋 Thank you for providing your information. I'm here to help you\${topic ? \` with \${topic.toLowerCase()}\` : ''}. What questions do you have for me?\`,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+    
+            quickReplies: [
+              'What services do you offer?',
+              'How much does it cost?',
+              'How can I contact you?'
+            ]
           };
           this.messages = [welcomeMessage];
           this.renderMessages();
@@ -880,7 +1274,7 @@ function generateWidgetScript(config) {
         
         // Reset button
         const submitBtn = e.target.querySelector('button[type="submit"]');
-        submitBtn.textContent = originalText;
+        submitBtn.textContent = '🚀 Start Chatting';
         submitBtn.disabled = false;
       }
     },
@@ -892,16 +1286,67 @@ function generateWidgetScript(config) {
       
       if (loading) loading.style.display = 'none';
       
-      messagesContainer.innerHTML = this.messages.map(message => \`
-        <div class="nowgray-message \${message.type}">
-          <div class="nowgray-message-content">
-            \${message.content}
-            <div style="font-size: 10px; opacity: 0.7; margin-top: 4px;">
-              \${new Date(message.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+      let html = '';
+      
+      this.messages.forEach((message, index) => {
+        if (message.type === 'session-separator') {
+          // Render session separator
+          html += \`
+            <div class="nowgray-session-separator">
+              <div class="nowgray-separator-line"></div>
+              <div class="nowgray-separator-text">\${message.content}</div>
+              <div class="nowgray-separator-line"></div>
             </div>
+          \`;
+        } else if (message.type === 'system') {
+          // Render system message (like history header)
+          html += \`
+            <div class="nowgray-message system">
+              <div class="nowgray-separator-text" style="background: #e3f2fd; color: #1976d2; font-weight: 600;">
+                \${message.content}
+              </div>
+            </div>
+          \`;
+        } else {
+          // Render regular message
+          html += \`
+            <div class="nowgray-message \${message.type}" data-message-id="\${message.id || index}">
+              <div class="nowgray-message-content">
+                \${message.content}
+                <span class="nowgray-message-timestamp">
+                  \${new Date(message.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                </span>
+                \${message.type === 'bot' ? \`
+                  <div class="nowgray-message-reactions">
+                    <button class="nowgray-reaction-btn" onclick="NowgrayChatWidget.reactToMessage('\${message.id || index}', 'helpful')">
+                      👍 Helpful
+                    </button>
+                    <button class="nowgray-reaction-btn" onclick="NowgrayChatWidget.reactToMessage('\${message.id || index}', 'not_helpful')">
+                      👎 Not helpful
+                    </button>
+                  </div>
+                \` : ''}
+              </div>
+            </div>
+          \`;
+        }
+      });
+      
+      // Add quick replies for the last bot message
+      const lastMessage = this.messages[this.messages.length - 1];
+      if (lastMessage && lastMessage.type === 'bot' && lastMessage.quickReplies && lastMessage.quickReplies.length > 0) {
+        html += \`
+          <div class="nowgray-quick-replies">
+            \${lastMessage.quickReplies.map(reply => \`
+              <button class="nowgray-quick-reply-btn" onclick="NowgrayChatWidget.sendQuickReply('\${reply}')">
+                \${reply}
+              </button>
+            \`).join('')}
           </div>
-        </div>
-      \`).join('');
+        \`;
+      }
+      
+      messagesContainer.innerHTML = html;
       
       // Scroll to bottom
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -915,9 +1360,9 @@ function generateWidgetScript(config) {
     },
     
     // Send message
-    sendMessage: async function() {
+    sendMessage: async function(messageText = null, isQuickReply = false) {
       const input = document.getElementById('nowgray-message-input');
-      const message = input.value.trim();
+      const message = messageText || input.value.trim();
       
       if (!message) return;
       
@@ -930,58 +1375,173 @@ function generateWidgetScript(config) {
       };
       
       this.messages.push(userMessage);
-      input.value = '';
+      if (!messageText) input.value = '';
       this.renderMessages();
       
-      // Store message
-      await this.storeMessage('user', message);
-      
-      // Add loading message
-      const loadingMessage = {
-        id: Date.now() + 1,
-        type: 'bot',
-        content: '<div class="nowgray-typing">AI is typing...</div>',
-        timestamp: new Date().toISOString()
-      };
-      this.messages.push(loadingMessage);
-      this.renderMessages();
+      // Show typing indicator
+      this.showTypingIndicator();
       
       try {
-        // Send to AI
-        const response = await fetch(\`\${this.config.apiUrl}/api/widget/search/ai/public?query=\${encodeURIComponent(message)}&companyId=\${this.config.companyId}\`);
+        // Use enhanced chat endpoint
+        const response = await fetch(\`\${this.config.apiUrl}/api/widget/enhanced-chat/message\`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message,
+            companyId: this.config.companyId,
+            sessionId: this.currentSessionId,
+            sessionToken: this.sessionToken,
+            quickReply: isQuickReply
+          })
+        });
+        
         const data = await response.json();
         
-        // Remove loading message
-        this.messages.pop();
+        // Remove typing indicator
+        this.hideTypingIndicator();
         
         if (data.success) {
           const botMessage = {
-            id: Date.now() + 2,
+            id: data.data.messageId || Date.now() + 2,
             type: 'bot',
-            content: data.data.answer,
-            timestamp: new Date().toISOString()
+            content: data.data.response,
+            timestamp: data.data.timestamp,
+            confidence: data.data.confidence,
+            sources: data.data.sources,
+            suggestedActions: data.data.suggestedActions,
+            quickReplies: data.data.quickReplies
           };
           
           this.messages.push(botMessage);
-          await this.storeMessage('bot', data.data.answer);
+          this.currentSessionId = data.data.sessionId;
         } else {
-          throw new Error(data.message || 'AI response failed');
+          throw new Error(data.message || 'Enhanced chat response failed');
         }
       } catch (error) {
-        // Remove loading message
-        this.messages.pop();
+        console.error('Enhanced chat error:', error);
+        this.hideTypingIndicator();
         
         const errorMessage = {
           id: Date.now() + 2,
           type: 'bot',
-          content: "I'm sorry, I'm having trouble connecting right now. Please try again.",
-          timestamp: new Date().toISOString()
+          content: "I'm sorry, I'm having trouble connecting right now. Please try again. 🔄",
+          timestamp: new Date().toISOString(),
+          suggestedActions: ['Try again', 'Contact support']
         };
         this.messages.push(errorMessage);
-        await this.storeMessage('bot', errorMessage.content);
       }
       
       this.renderMessages();
+    },
+    
+    // Show typing indicator
+    showTypingIndicator: function() {
+      const messagesContainer = document.getElementById('nowgray-messages');
+      const typingHtml = \`
+        <div id="nowgray-typing-indicator" class="nowgray-typing-indicator">
+          <div class="nowgray-typing-dots">
+            <div class="nowgray-typing-dot"></div>
+            <div class="nowgray-typing-dot"></div>
+            <div class="nowgray-typing-dot"></div>
+          </div>
+          <span>AI is thinking...</span>
+        </div>
+      \`;
+      messagesContainer.insertAdjacentHTML('beforeend', typingHtml);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    },
+    
+    // Hide typing indicator
+    hideTypingIndicator: function() {
+      const typingIndicator = document.getElementById('nowgray-typing-indicator');
+      if (typingIndicator) {
+        typingIndicator.remove();
+      }
+    },
+    
+    // Send quick reply
+    sendQuickReply: function(replyText) {
+      this.sendMessage(replyText, true);
+    },
+    
+    // React to message
+    reactToMessage: async function(messageId, reaction) {
+      try {
+        const response = await fetch(\`\${this.config.apiUrl}/api/widget/enhanced-chat/reaction\`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messageId,
+            reaction,
+            sessionToken: this.sessionToken
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          // Show feedback
+          this.showFeedback(data.data.message);
+          
+          // Update reaction button state
+          const messageEl = document.querySelector(\`[data-message-id="\${messageId}"]\`);
+          if (messageEl) {
+            const reactionBtns = messageEl.querySelectorAll('.nowgray-reaction-btn');
+            reactionBtns.forEach(btn => {
+              btn.style.opacity = '0.5';
+              btn.disabled = true;
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Reaction error:', error);
+      }
+    },
+    
+    // Handle suggested actions
+    handleAction: function(action) {
+      switch (action.toLowerCase()) {
+        case 'contact support':
+        case 'speak to human agent':
+          this.sendMessage("I would like to speak with a human agent");
+          break;
+        case 'ask another question':
+          const input = document.getElementById('nowgray-message-input');
+          input.focus();
+          break;
+        case 'was this helpful?':
+          // Already handled by reaction buttons
+          break;
+        default:
+          this.sendMessage(action);
+      }
+    },
+    
+    // Show feedback message
+    showFeedback: function(message) {
+      // Create temporary feedback element
+      const feedback = document.createElement('div');
+      feedback.style.cssText = \`
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: \${this.config.primaryColor};
+        color: white;
+        padding: 12px 20px;
+        border-radius: 25px;
+        font-size: 14px;
+        z-index: 1000000;
+        animation: nowgray-slide-in 0.3s ease-out;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      \`;
+      feedback.textContent = message;
+      
+      document.body.appendChild(feedback);
+      
+      // Remove after 3 seconds
+      setTimeout(() => {
+        feedback.remove();
+      }, 3000);
     },
     
     // Store message
@@ -1024,6 +1584,70 @@ function generateWidgetScript(config) {
         });
       } catch (error) {
         console.error('Error updating session activity:', error);
+      }
+    },
+    
+    // Start new chat
+    startNewChat: function() {
+      // Clear current messages
+      this.messages = [];
+      this.currentSessionId = null;
+      
+      // Show enhanced welcome message with all features
+      const welcomeMessage = {
+        id: 'new-chat-welcome',
+        type: 'bot',
+        content: 'Hello! 👋 I am your AI assistant. I am here to help you with any questions you might have. How can I assist you today?',
+        timestamp: new Date().toISOString(),
+
+        quickReplies: [
+          'What services do you offer?',
+          'How much does it cost?',
+          'How can I contact you?',
+          'What are your business hours?',
+          'Tell me about your company'
+        ]
+      };
+      
+      this.messages = [welcomeMessage];
+      this.renderMessages();
+      
+      // Show success feedback
+      this.showFeedback('New chat started! 🎉');
+    },
+
+    // Toggle history view
+    toggleHistoryView: async function() {
+      try {
+        this.showFeedback('Loading chat history...');
+        
+        // Load more comprehensive history
+        const response = await fetch(\`\${this.config.apiUrl}/api/widget/search/history?companyId=\${this.config.companyId}&page=1&limit=50\`);
+        const data = await response.json();
+        
+        if (data.success && data.data.messages && data.data.messages.length > 0) {
+          // Show history with session separators
+          this.messages = this.groupMessagesBySessions(data.data.messages);
+          this.currentSessionId = data.data.currentSessionId;
+          
+          // Add a header to indicate this is history view
+          const historyHeader = {
+            id: 'history-header',
+            type: 'system',
+            content: '📜 Complete Chat History',
+            timestamp: new Date().toISOString()
+          };
+          
+          this.messages.unshift(historyHeader);
+          this.renderMessages();
+          
+          this.showFeedback(\`Loaded \${data.data.messages.length} messages from your chat history\`);
+        } else {
+          this.showFeedback('No chat history found. Start a conversation to build your history!');
+        }
+      } catch (error) {
+        console.error('Error loading chat history:', error);
+        this.showFeedback('Unable to load chat history. Please try again.');
       }
     }
   };

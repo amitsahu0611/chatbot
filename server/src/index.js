@@ -81,19 +81,23 @@ app.use(cors({
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
-    // Allow localhost origins and the configured client URL
+    // Parse multiple CLIENT_URLs separated by commas
+    const clientUrls = process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',').map(url => url.trim()) : [];
+    
+    // Allow localhost origins and configured client URLs
     const allowedOrigins = [
       'http://localhost:3000',
       'http://localhost:5173',
       'http://127.0.0.1:3000',
       'http://127.0.0.1:5173',
-      process.env.CLIENT_URL
+      ...clientUrls
     ].filter(Boolean);
     
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      callback(null, true); // Allow all origins for widget scripts
+      // Allow all origins for widget scripts
+      callback(null, true);
     }
   },
   credentials: true,

@@ -5,6 +5,17 @@ const { publicAiSearch, getChatHistory, getPublicSearchSuggestions, getPublicFaq
 const { trackFormSubmission } = require('../../controllers/widget/formTrackingController');
 const { auth } = require('../../middleware/auth');
 
+// CORS middleware for widget routes
+const widgetCORS = (req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  next();
+};
+
+// Apply CORS to all widget routes
+router.use(widgetCORS);
+
 /**
  * @swagger
  * /api/widget/search/ai:
@@ -508,5 +519,27 @@ router.post('/lead/public', createPublicLead);
  *         description: Server error
  */
 router.post('/form/track', trackFormSubmission);
+
+// Handle preflight OPTIONS requests for public endpoints
+router.options('/ai/public', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.status(200).end();
+});
+
+router.options('/history', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.status(200).end();
+});
+
+router.options('/message', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.status(200).end();
+});
 
 module.exports = router;

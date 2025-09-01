@@ -14,11 +14,17 @@ const generateWidgetId = (companyId, type) => {
 /**
  * Generate embed code for widget
  */
-const generateEmbedCode = (widgetId, companyId, type, domain) => {
-  const baseUrl = process.env.WIDGET_BASE_URL || 'http://localhost:5001';
-  const scriptUrl = `${baseUrl}/api/widget/${type}.js`;
+const generateEmbedCode = (widgetId, companyId, type, domain, settings = {}) => {
+  const baseUrl = process.env.WIDGET_BASE_URL || 'http://localhost:30020';
   
-  return `<script src="${scriptUrl}" data-widget-id="${widgetId}" data-company-id="${companyId}"></script>`;
+  // Use the new embed script endpoint with proper parameters
+  const position = settings.position || 'bottom-right';
+  const primaryColor = encodeURIComponent(settings.primaryColor || '#3b82f6');
+  const secondaryColor = encodeURIComponent(settings.secondaryColor || '#764ba2');
+  
+  const scriptUrl = `${baseUrl}/api/widget/embed/script?companyId=${companyId}&widgetId=${widgetId}&position=${position}&primaryColor=${primaryColor}&secondaryColor=${secondaryColor}&v=2.4`;
+  
+  return `<script src="${scriptUrl}"></script>`;
 };
 
 /**
@@ -99,7 +105,7 @@ const createWidget = async (req, res) => {
     const widgetId = generateWidgetId(companyId, type);
     
     // Generate embed code
-    const embedCode = generateEmbedCode(widgetId, companyId, type, domain);
+    const embedCode = generateEmbedCode(widgetId, companyId, type, domain, settings);
     
     // Create widget
     const widget = await Widget.create({
@@ -200,9 +206,10 @@ const updateWidget = async (req, res) => {
     if (status) widget.status = status;
     if (domain) widget.domain = domain;
     
-    // Regenerate embed code if domain changed
-    if (domain) {
-      widget.embedCode = generateEmbedCode(widget.widgetId, companyId, widget.type, domain);
+    // Regenerate embed code if domain or settings changed
+    if (domain || settings) {
+      const updatedSettings = settings ? { ...widget.settings, ...settings } : widget.settings;
+      widget.embedCode = generateEmbedCode(widget.widgetId, companyId, widget.type, domain || widget.domain, updatedSettings);
     }
     
     await widget.save();

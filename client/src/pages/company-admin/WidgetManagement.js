@@ -167,7 +167,7 @@ const WidgetManagement = () => {
     const serverUrl = API_URL; // Use the configured API URL
     
     // Create the dynamic script URL with configuration parameters
-    const scriptUrl = `${serverUrl}/api/widget/embed/script?companyId=${companyId}&widgetId=${widgetId}&position=${widgetSettings.position}&primaryColor=${encodeURIComponent(widgetSettings.primaryColor)}&secondaryColor=${encodeURIComponent('#764ba2')}`;
+    const scriptUrl = `${serverUrl}/api/widget/embed/script?companyId=${companyId}&widgetId=${widgetId}&position=${widgetSettings.position}&primaryColor=${encodeURIComponent(widgetSettings.primaryColor)}&secondaryColor=${encodeURIComponent('#764ba2')}&v=2.4`;
     
     return `<script src="${scriptUrl}"></script>`;
   };

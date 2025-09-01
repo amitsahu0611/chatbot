@@ -13,9 +13,13 @@ import {
   UserPlusIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
-  XCircleIcon
+  XCircleIcon,
+  DocumentTextIcon,
+  Cog6ToothIcon,
+  ClipboardDocumentListIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import { API_URL } from '../../utils/config';
 
 const UsersManagement = () => {
   const [page, setPage] = useState(1);
@@ -25,7 +29,9 @@ const UsersManagement = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showFormModal, setShowFormModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedCompany, setSelectedCompany] = useState(null);
   const [companies, setCompanies] = useState([]);
 
   const queryClient = useQueryClient();
@@ -62,7 +68,7 @@ const UsersManagement = () => {
   useEffect(() => {
     const fetchCompanies = async () => {
       try {
-        const response = await api.get('/super-admin/companies');
+        const response = await api.get(`${API_URL}/super-admin/companies`);
         setCompanies(response.data.data || []);
       } catch (error) {
         console.warn('Could not fetch companies:', error);
@@ -134,6 +140,57 @@ const UsersManagement = () => {
     }
   );
 
+  // Fetch company forms
+  const { data: companyForms, isLoading: formsLoading } = useQuery(
+    ['companyForms', selectedCompany?.id],
+    async () => {
+      if (!selectedCompany?.id) return null;
+      const response = await api.get(`/super-admin/forms/company/${selectedCompany.id}?includeInactive=true`);
+      return response.data.data;
+    },
+    {
+      enabled: !!selectedCompany?.id,
+      staleTime: 30000,
+    }
+  );
+
+  // Toggle form status mutation
+  const toggleFormMutation = useMutation(
+    async ({ formId, isActive }) => {
+      const response = await api.put(`/super-admin/forms/${formId}/toggle`, { isActive });
+      return response.data;
+    },
+    {
+      onSuccess: (data) => {
+        queryClient.invalidateQueries(['companyForms', selectedCompany?.id]);
+        toast.success(data.message);
+      },
+      onError: (error) => {
+        toast.error(error.response?.data?.message || 'Failed to toggle form status');
+      }
+    }
+  );
+
+  // Bulk toggle forms mutation
+  const bulkToggleFormsMutation = useMutation(
+    async ({ companyId, isActive, formIds = [] }) => {
+      const response = await api.put(`/super-admin/forms/company/${companyId}/bulk-toggle`, { 
+        isActive, 
+        formIds 
+      });
+      return response.data;
+    },
+    {
+      onSuccess: (data) => {
+        queryClient.invalidateQueries(['companyForms', selectedCompany?.id]);
+        toast.success(data.message);
+      },
+      onError: (error) => {
+        toast.error(error.response?.data?.message || 'Failed to bulk toggle forms');
+      }
+    }
+  );
+
   const handleCreateUser = (formData) => {
     createUserMutation.mutate(formData);
   };
@@ -147,6 +204,32 @@ const UsersManagement = () => {
 
   const handleDeleteUser = () => {
     deleteUserMutation.mutate(selectedUser.id);
+  };
+
+  const handleManageForms = (user) => {
+    if (user.company) {
+      setSelectedCompany(user.company);
+      setShowFormModal(true);
+    } else {
+      toast.error('User must be associated with a company to manage forms');
+    }
+  };
+
+  const handleToggleForm = (formId, currentStatus) => {
+    toggleFormMutation.mutate({
+      formId,
+      isActive: !currentStatus
+    });
+  };
+
+  const handleBulkToggleForms = (isActive, formIds = []) => {
+    if (!selectedCompany?.id) return;
+    
+    bulkToggleFormsMutation.mutate({
+      companyId: selectedCompany.id,
+      isActive,
+      formIds
+    });
   };
 
   const getRoleBadgeColor = (role) => {
@@ -423,7 +506,7 @@ const UsersManagement = () => {
                         </div>
                       </td>
                       <td className="px-6 py-5 whitespace-nowrap text-sm font-medium">
-                        <div className="flex space-x-3">
+                        <div className="flex space-x-2">
                           <button
                             onClick={() => {
                               setSelectedUser(user);
@@ -434,6 +517,15 @@ const UsersManagement = () => {
                           >
                             <PencilIcon className="h-4 w-4" />
                           </button>
+                          {user.company && (
+                            <button
+                              onClick={() => handleManageForms(user)}
+                              className="inline-flex items-center p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 hover:text-green-700 transition-all duration-200 hover:scale-105"
+                              title="Manage Forms"
+                            >
+                              <ClipboardDocumentListIcon className="h-4 w-4" />
+                            </button>
+                          )}
                           {user.role !== 'super_admin' && (
                             <button
                               onClick={() => {
@@ -561,6 +653,24 @@ const UsersManagement = () => {
           title="Delete User"
           message={`Are you sure you want to delete "${selectedUser.firstName} ${selectedUser.lastName}"? This action cannot be undone.`}
           isLoading={deleteUserMutation.isLoading}
+        />
+      )}
+
+      {/* Form Management Modal */}
+      {showFormModal && selectedCompany && (
+        <FormManagementModal
+          isOpen={showFormModal}
+          onClose={() => {
+            setShowFormModal(false);
+            setSelectedCompany(null);
+          }}
+          company={selectedCompany}
+          forms={companyForms?.forms || []}
+          isLoading={formsLoading}
+          onToggleForm={handleToggleForm}
+          onBulkToggle={handleBulkToggleForms}
+          toggleLoading={toggleFormMutation.isLoading}
+          bulkLoading={bulkToggleFormsMutation.isLoading}
         />
       )}
     </div>
@@ -782,6 +892,234 @@ const DeleteModal = ({ isOpen, onClose, onConfirm, title, message, isLoading = f
             ) : (
               'Delete User'
             )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Form Management Modal Component
+const FormManagementModal = ({ 
+  isOpen, 
+  onClose, 
+  company, 
+  forms = [], 
+  isLoading = false, 
+  onToggleForm,
+  onBulkToggle,
+  toggleLoading = false,
+  bulkLoading = false 
+}) => {
+  const [selectedForms, setSelectedForms] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
+
+  const activeForms = forms.filter(form => form.isActive);
+  const inactiveForms = forms.filter(form => !form.isActive);
+
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedForms([]);
+    } else {
+      setSelectedForms(forms.map(form => form.id));
+    }
+    setSelectAll(!selectAll);
+  };
+
+  const handleSelectForm = (formId) => {
+    setSelectedForms(prev => {
+      const newSelection = prev.includes(formId)
+        ? prev.filter(id => id !== formId)
+        : [...prev, formId];
+      
+      // Update select all state
+      setSelectAll(newSelection.length === forms.length);
+      return newSelection;
+    });
+  };
+
+  const getFormTypeBadgeColor = (formType) => {
+    switch (formType) {
+      case 'contact':
+        return 'bg-blue-100 text-blue-800';
+      case 'support':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'lead':
+        return 'bg-green-100 text-green-800';
+      case 'custom':
+        return 'bg-purple-100 text-purple-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
+      <div className="relative bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-4xl mx-auto transform transition-all duration-300 modal-enter">
+        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-green-50 to-blue-50 rounded-t-2xl">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="p-3 bg-green-500 rounded-xl shadow-lg">
+                  <ClipboardDocumentListIcon className="h-6 w-6 text-white" />
+                </div>
+              </div>
+              <div className="ml-4">
+                <h3 className="text-lg font-bold text-gray-900">
+                  Form Management - {company.name}
+                </h3>
+                <p className="text-sm text-gray-600">
+                  {activeForms.length} active • {inactiveForms.length} inactive • {forms.length} total
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 transition-colors duration-200"
+            >
+              <XCircleIcon className="h-6 w-6" />
+            </button>
+          </div>
+        </div>
+
+        <div className="p-6">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-16">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-green-600 mb-4"></div>
+              <p className="text-gray-600 text-lg">Loading forms...</p>
+            </div>
+          ) : forms.length === 0 ? (
+            <div className="text-center py-16">
+              <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-6">
+                <DocumentTextIcon className="h-12 w-12 text-gray-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">No forms found</h3>
+              <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                This company doesn't have any forms yet. Forms will appear here once they are created.
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Bulk Actions */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="selectAll"
+                      checked={selectAll}
+                      onChange={handleSelectAll}
+                      className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="selectAll" className="ml-3 text-sm font-medium text-gray-900">
+                      Select All ({forms.length} forms)
+                    </label>
+                    {selectedForms.length > 0 && (
+                      <span className="ml-3 text-sm text-gray-600">
+                        {selectedForms.length} selected
+                      </span>
+                    )}
+                  </div>
+                  {selectedForms.length > 0 && (
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={() => onBulkToggle(true, selectedForms)}
+                        disabled={bulkLoading}
+                        className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-all duration-200"
+                      >
+                        {bulkLoading ? 'Processing...' : 'Activate Selected'}
+                      </button>
+                      <button
+                        onClick={() => onBulkToggle(false, selectedForms)}
+                        disabled={bulkLoading}
+                        className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-all duration-200"
+                      >
+                        {bulkLoading ? 'Processing...' : 'Deactivate Selected'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Forms List */}
+              <div className="grid gap-4 max-h-96 overflow-y-auto">
+                {forms.map((form) => (
+                  <div
+                    key={form.id}
+                    className={`border rounded-lg p-4 transition-all duration-200 ${
+                      form.isActive 
+                        ? 'border-green-200 bg-green-50 hover:bg-green-100' 
+                        : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center flex-1">
+                        <input
+                          type="checkbox"
+                          checked={selectedForms.includes(form.id)}
+                          onChange={() => handleSelectForm(form.id)}
+                          className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded mr-4"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-3">
+                            <h4 className="text-sm font-semibold text-gray-900">{form.name}</h4>
+                            <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getFormTypeBadgeColor(form.formType)}`}>
+                              {form.formType}
+                            </span>
+                            <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
+                              form.isActive 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-red-100 text-red-800'
+                            }`}>
+                              <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
+                                form.isActive ? 'bg-green-400' : 'bg-red-400'
+                              }`}></div>
+                              {form.isActive ? 'Active' : 'Inactive'}
+                            </span>
+                            {form.isPublished && (
+                              <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                                Published
+                              </span>
+                            )}
+                          </div>
+                          {form.description && (
+                            <p className="text-xs text-gray-600 mt-1">{form.description}</p>
+                          )}
+                          <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500">
+                            <span>{form.totalSubmissions || 0} submissions</span>
+                            <span>Created {new Date(form.createdAt).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => onToggleForm(form.id, form.isActive)}
+                          disabled={toggleLoading}
+                          className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 ${
+                            form.isActive
+                              ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                              : 'bg-green-100 text-green-700 hover:bg-green-200'
+                          }`}
+                        >
+                          {toggleLoading ? '...' : (form.isActive ? 'Deactivate' : 'Activate')}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-6 py-3 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-100 transition-all duration-200"
+          >
+            Close
           </button>
         </div>
       </div>

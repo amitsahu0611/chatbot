@@ -80,6 +80,14 @@ const VisitorSession = sequelize.define('VisitorSession', {
     allowNull: false,
     defaultValue: false
   },
+  // leadId: {
+  //   type: DataTypes.INTEGER,
+  //   allowNull: true,
+  //   references: {
+  //     model: 'leads',
+  //     key: 'id'
+  //   }
+  // },
   metadata: {
     type: DataTypes.JSON,
     allowNull: true,

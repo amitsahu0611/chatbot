@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { BuildingOfficeIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import { API_URL } from '../../utils/config';
 
 const CompanySelection = () => {
   const [companies, setCompanies] = useState([]);
@@ -16,7 +17,7 @@ const CompanySelection = () => {
 
   const fetchCompanies = async () => {
     try {
-      const response = await fetch('/api/super-admin/companies', {
+      const response = await fetch(`${API_URL}/api/super-admin/companies`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
