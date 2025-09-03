@@ -28,6 +28,9 @@ const integrationsRoutes = require('./routes/integrations');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Trust proxy for production environment (fixes X-Forwarded-For issues)
+app.set('trust proxy', 1);
+
 // Connect to database
 connectDB();
 
@@ -75,31 +78,47 @@ app.use(helmet({
   },
 }));
 
-// CORS configuration
+// CORS configuration - Allow all domains for widget functionality
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    // Parse multiple CLIENT_URLs separated by commas
-    const clientUrls = process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',').map(url => url.trim()) : [];
-    
-    // Allow localhost origins and configured client URLs
-    const allowedOrigins = '*'; // Allow all origins
-    
-    // Allow all origins
+    // Always allow requests - this is essential for widget functionality across multiple domains
+    // Widgets need to work on any customer's website
     callback(null, true);
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD', 'PATCH'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'Access-Control-Request-Method',
+    'Access-Control-Request-Headers',
+    'X-Forwarded-For',
+    'User-Agent',
+    'Referer'
+  ],
+  exposedHeaders: ['Content-Length', 'X-Kuma-Revision'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
 
-// Rate limiting
+// Rate limiting with proper proxy support
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
+  max: 500, // Increased limit for widget usage across multiple domains
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  trustProxy: true, // Trust proxy headers
+  keyGenerator: (req) => {
+    return req.ip || req.connection.remoteAddress || 'unknown';
+  },
+  skip: (req) => {
+    // Skip rate limiting for widget static files
+    return req.url.includes('.js') || req.url.includes('.css') || req.url.includes('/health');
+  }
 });
 app.use('/api/', limiter);
 
@@ -133,6 +152,24 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('combined'));
 }
 
+// Global OPTIONS handler for preflight requests
+app.options('*', (req, res) => {
+  const origin = req.headers.origin;
+  
+  // Log widget usage across domains for analytics
+  if (origin && req.url.includes('/api/widget/')) {
+    logger.info(`Widget preflight request from domain: ${origin} to ${req.url}`);
+  }
+  
+  res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Access-Control-Request-Method, Access-Control-Request-Headers, X-Forwarded-For, User-Agent, Referer');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+  res.setHeader('Vary', 'Origin'); // Important for caching
+  res.status(204).end();
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
@@ -143,32 +180,141 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Serve static files from public directory
+// CORS test endpoint
+app.get('/cors-test', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.json({
+    success: true,
+    message: 'CORS is working correctly for multi-domain widgets',
+    origin: req.headers.origin,
+    userAgent: req.headers['user-agent'],
+    timestamp: new Date().toISOString(),
+    note: 'Widget can now be embedded on any domain!'
+  });
+});
+
+// Widget domains analytics endpoint (for monitoring widget usage)
+app.get('/api/widget/analytics/domains', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.json({
+    success: true,
+    message: 'Widget is configured for multi-domain usage',
+    corsEnabled: true,
+    allowsAllDomains: true,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Direct test endpoint for session check (temporary debugging)
+app.post('/api/widget/session/check-direct', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.json({
+    success: true,
+    message: 'Direct session check working',
+    body: req.body,
+    origin: req.headers.origin,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Debug endpoint to list all registered routes
+app.get('/api/debug/routes', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+  
+  const routes = [];
+  app._router.stack.forEach((middleware) => {
+    if (middleware.route) {
+      routes.push({
+        path: middleware.route.path,
+        methods: Object.keys(middleware.route.methods)
+      });
+    } else if (middleware.name === 'router') {
+      middleware.handle.stack.forEach((handler) => {
+        if (handler.route) {
+          routes.push({
+            path: middleware.regexp.source.replace(/\\\//g, '/').replace(/\$.*/, ''),
+            route: handler.route.path,
+            methods: Object.keys(handler.route.methods)
+          });
+        }
+      });
+    }
+  });
+  
+  res.json({
+    success: true,
+    totalRoutes: routes.length,
+    routes: routes.filter(r => r.path.includes('widget')),
+    timestamp: new Date().toISOString()
+  });
+});
+
 app.use(express.static(path.join(__dirname, '../public'), {
-  setHeaders: (res, filePath) => {
-    // Set appropriate CORS headers for widget files
+  setHeaders: (res, filePath, stat) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+    res.setHeader('Access-Control-Allow-Credentials', 'false'); // Static files don't need credentials
     
     // Set cache headers
     if (filePath.endsWith('.js')) {
-      res.setHeader('Content-Type', 'application/javascript');
+      res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
       res.setHeader('Cache-Control', 'public, max-age=3600'); // 1 hour cache
+      res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+      res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     } else if (filePath.endsWith('.html')) {
-      res.setHeader('Content-Type', 'text/html');
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache'); // No cache for HTML
+    } else if (filePath.endsWith('.css')) {
+      res.setHeader('Content-Type', 'text/css; charset=utf-8');
+      res.setHeader('Cache-Control', 'public, max-age=86400'); // 24 hour cache for CSS
     }
   }
 }));
+
+// Widget-specific CORS middleware for multi-domain support
+app.use('/api/widget', (req, res, next) => {
+  const origin = req.headers.origin;
+  
+  // Log widget usage for analytics and monitoring
+  if (origin) {
+    logger.info(`Widget request from domain: ${origin} to ${req.url} (Method: ${req.method})`);
+  }
+  
+  // Set CORS headers for widget endpoints to work on any domain
+  res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Access-Control-Request-Method, Access-Control-Request-Headers, X-Forwarded-For, User-Agent, Referer');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400');
+  res.setHeader('Vary', 'Origin');
+  
+  // Handle preflight requests immediately
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  
+  next();
+});
+
+// Debug route registration
+logger.info('Registering API routes...');
 
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/super-admin', superAdminRoutes);
 app.use('/api/company-admin', companyAdminRoutes);
-app.use('/api/widget', widgetRoutes);
+app.use('/api/widget', (req, res, next) => {
+  logger.info(`Widget route accessed: ${req.method} ${req.url} from ${req.headers.origin || 'no-origin'}`);
+  next();
+}, widgetRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/integrations', integrationsRoutes);
+
+logger.info('API routes registered successfully');
 
 // API documentation
 if (process.env.NODE_ENV === 'development') {

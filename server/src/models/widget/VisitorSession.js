@@ -95,18 +95,7 @@ const VisitorSession = sequelize.define('VisitorSession', {
   }
 }, {
   tableName: 'visitor_sessions',
-  timestamps: true,
-  indexes: [
-    {
-      fields: ['ipAddress', 'companyId']
-    },
-    {
-      fields: ['expiresAt']
-    },
-    {
-      fields: ['isActive']
-    }
-  ]
+  timestamps: true
 });
 
 // Static methods

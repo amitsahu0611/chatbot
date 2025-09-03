@@ -11,10 +11,12 @@ const sequelize = new Sequelize(
     dialect: process.env.DB_DIALECT || 'mysql',
     logging: false, // Disable logging to reduce noise
     pool: {
-      max: 5,
-      min: 0,
+      max: 10, // Increased max connections
+      min: 2,  // Keep minimum connections alive
       acquire: 60000,
-      idle: 30000
+      idle: 30000,
+      evict: 1000, // Check for idle connections every second
+      handleDisconnects: true // Automatically handle disconnects
     },
     dialectOptions: {
       connectTimeout: 60000,
@@ -25,6 +27,26 @@ const sequelize = new Sequelize(
       timestamps: true,
       underscored: true,
       freezeTableName: true
+    },
+    retry: {
+      match: [
+        /ETIMEDOUT/,
+        /EHOSTUNREACH/,
+        /ECONNRESET/,
+        /ECONNREFUSED/,
+        /ETIMEDOUT/,
+        /ESOCKETTIMEDOUT/,
+        /EHOSTUNREACH/,
+        /EPIPE/,
+        /EAI_AGAIN/,
+        /SequelizeConnectionError/,
+        /SequelizeConnectionRefusedError/,
+        /SequelizeHostNotFoundError/,
+        /SequelizeHostNotReachableError/,
+        /SequelizeInvalidConnectionError/,
+        /SequelizeConnectionTimedOutError/
+      ],
+      max: 3
     }
   }
 );
