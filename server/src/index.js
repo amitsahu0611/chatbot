@@ -85,20 +85,10 @@ app.use(cors({
     const clientUrls = process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',').map(url => url.trim()) : [];
     
     // Allow localhost origins and configured client URLs
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'http://127.0.0.1:3000',
-      'http://127.0.0.1:5173',
-      ...clientUrls
-    ].filter(Boolean);
+    const allowedOrigins = '*'; // Allow all origins
     
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      // Allow all origins for widget scripts
-      callback(null, true);
-    }
+    // Allow all origins
+    callback(null, true);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -219,7 +209,7 @@ const server = app.listen(PORT, () => {
 // Socket.io setup
 const io = require('socket.io')(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: "*", // Allow all origins
     methods: ["GET", "POST"]
   }
 });

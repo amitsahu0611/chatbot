@@ -1,7 +1,7 @@
 const { FAQ, User } = require('../../../models');
 const { Op } = require('sequelize');
 const { sequelize } = require('../../../config/database');
-const { logger } = require('../../../utils/logger');
+const logger = require('../../../utils/logger');
 
 // Get all FAQs with filtering and pagination
 const getFAQs = async (req, res) => {
@@ -61,26 +61,43 @@ const getFAQs = async (req, res) => {
     // Build sort array
     const order = [[sortBy, sortOrder.toUpperCase()]];
 
-    const { count, rows: faqs } = await FAQ.findAndCountAll({
+    // Optimize query: Only include user info if specifically requested
+    const includeUsers = req.query.includeUsers === 'true';
+    
+    // Set reasonable limits to prevent huge queries
+    const maxLimit = 100;
+    const actualLimit = Math.min(parseInt(limit), maxLimit);
+    
+    const queryOptions = {
       where,
       order,
-      limit: parseInt(limit),
-      offset: (parseInt(page) - 1) * parseInt(limit),
-      include: [
+      limit: actualLimit,
+      offset: (parseInt(page) - 1) * actualLimit,
+      attributes: [
+        'id', 'question', 'answer', 'category', 'tags', 'isActive', 
+        'views', 'helpfulCount', 'notHelpfulCount', 'order', 'createdAt', 'updatedAt'
+      ]
+    };
+
+    // Only add expensive includes when needed
+    if (includeUsers) {
+      queryOptions.include = [
         {
           model: User,
           as: 'createdByUser',
-          attributes: ['id', 'firstName', 'lastName', 'email'],
+          attributes: ['id', 'firstName', 'lastName'],
           required: false
         },
         {
           model: User,
           as: 'updatedByUser',
-          attributes: ['id', 'firstName', 'lastName', 'email'],
+          attributes: ['id', 'firstName', 'lastName'],
           required: false
         }
-      ]
-    });
+      ];
+    }
+
+    const { count, rows: faqs } = await FAQ.findAndCountAll(queryOptions);
 
     res.json({
       success: true,

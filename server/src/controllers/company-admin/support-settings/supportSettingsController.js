@@ -1,5 +1,5 @@
 const SupportSettings = require('../../../models/company-admin/support-settings/SupportSettings');
-const { logger } = require('../../../utils/logger');
+const logger = require('../../../utils/logger');
 
 // Get support settings
 const getSupportSettings = async (req, res) => {

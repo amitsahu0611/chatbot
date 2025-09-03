@@ -1,7 +1,10 @@
 const { Lead, User } = require('../../../models');
+const ChatMessage = require('../../../models/widget/ChatMessage');
+const VisitorSession = require('../../../models/widget/VisitorSession');
 const { Op } = require('sequelize');
 const { sequelize } = require('../../../config/database');
-const { logger } = require('../../../utils/logger');
+const logger = require('../../../utils/logger');
+const { clearCompanyCache } = require('../../../middleware/cache');
 
 // Get all leads with filtering and pagination
 const getLeads = async (req, res) => {
@@ -60,41 +63,63 @@ const getLeads = async (req, res) => {
     // Build sort array
     const order = [[sortBy, sortOrder.toUpperCase()]];
 
-    const { count, rows: leads } = await Lead.findAndCountAll({
+    // Optimize query performance
+    const includeAssignedUser = req.query.includeUser === 'true';
+    const maxLimit = 100;
+    const actualLimit = Math.min(parseInt(limit), maxLimit);
+    
+    const queryOptions = {
       where,
       order,
-      limit: parseInt(limit),
-      offset: (parseInt(page) - 1) * parseInt(limit),
-      include: [
+      limit: actualLimit,
+      offset: (parseInt(page) - 1) * actualLimit,
+      attributes: [
+        'id', 'companyId', 'visitorId', 'name', 'email', 'phone', 
+        'status', 'priority', 'source', 'score', 'assignedTo',
+        'createdAt', 'updatedAt', 'lastActivity', 'tags'
+      ]
+    };
+
+    // Only include user data when specifically requested
+    if (includeAssignedUser) {
+      queryOptions.include = [
         {
           model: User,
           as: 'assignedUser',
-          attributes: ['id', 'firstName', 'lastName', 'email'],
+          attributes: ['id', 'firstName', 'lastName'],
           required: false
         }
-      ]
-    });
+      ];
+    }
 
-    // Get statistics with better error handling
+    const { count, rows: leads } = await Lead.findAndCountAll(queryOptions);
+
+    // Get statistics - only if explicitly requested to avoid slow queries
     let stats = null;
-    try {
-      const statsWhere = role !== 'super_admin' || !allCompanies ? { companyId: targetCompanyId } : {};
-      stats = await Lead.findOne({
-        where: statsWhere,
-        attributes: [
-          [sequelize.fn('COUNT', sequelize.col('id')), 'total'],
-          [sequelize.fn('SUM', sequelize.literal('CASE WHEN status = "new" THEN 1 ELSE 0 END')), 'new'],
-          [sequelize.fn('SUM', sequelize.literal('CASE WHEN status = "contacted" THEN 1 ELSE 0 END')), 'contacted'],
-          [sequelize.fn('SUM', sequelize.literal('CASE WHEN status = "qualified" THEN 1 ELSE 0 END')), 'qualified'],
-          [sequelize.fn('SUM', sequelize.literal('CASE WHEN status = "converted" THEN 1 ELSE 0 END')), 'converted'],
-          [sequelize.fn('SUM', sequelize.literal('CASE WHEN status = "lost" THEN 1 ELSE 0 END')), 'lost']
-        ],
-        raw: true
-      });
-    } catch (statsError) {
-      console.error('Error fetching lead statistics:', statsError);
-      logger.error('Error fetching lead statistics:', String(statsError));
-      stats = null;
+    const includeStats = req.query.includeStats === 'true';
+    
+    if (includeStats) {
+      try {
+        const statsWhere = role !== 'super_admin' || !allCompanies ? { companyId: targetCompanyId } : {};
+        
+        // Use more efficient query with proper indexing
+        stats = await Lead.findOne({
+          where: statsWhere,
+          attributes: [
+            [sequelize.fn('COUNT', sequelize.col('id')), 'total'],
+            [sequelize.fn('SUM', sequelize.literal('CASE WHEN status = "new" THEN 1 ELSE 0 END')), 'new'],
+            [sequelize.fn('SUM', sequelize.literal('CASE WHEN status = "contacted" THEN 1 ELSE 0 END')), 'contacted'],
+            [sequelize.fn('SUM', sequelize.literal('CASE WHEN status = "qualified" THEN 1 ELSE 0 END')), 'qualified'],
+            [sequelize.fn('SUM', sequelize.literal('CASE WHEN status = "converted" THEN 1 ELSE 0 END')), 'converted'],
+            [sequelize.fn('SUM', sequelize.literal('CASE WHEN status = "lost" THEN 1 ELSE 0 END')), 'lost']
+          ],
+          raw: true
+        });
+      } catch (statsError) {
+        console.error('Error fetching lead statistics:', statsError);
+        logger.error('Error fetching lead statistics:', String(statsError));
+        stats = null;
+      }
     }
 
     // Ensure stats object exists and has default values
@@ -259,6 +284,10 @@ const createLead = async (req, res) => {
       metadata: leadData.metadata || {}
     });
 
+    // Clear cache for this company to show updated lead list
+    const clearedCount = clearCompanyCache(userCompanyId);
+    logger.info(`Cleared ${clearedCount} cache entries for company ${userCompanyId} after lead creation`);
+
     res.status(201).json({
       success: true,
       message: 'Lead created successfully',
@@ -306,6 +335,10 @@ const updateLead = async (req, res) => {
 
     await lead.save();
 
+    // Clear cache for this company to show updated lead list
+    const clearedCount = clearCompanyCache(companyId);
+    logger.info(`Cleared ${clearedCount} cache entries for company ${companyId} after lead update`);
+
     res.json({
       success: true,
       message: 'Lead updated successfully',
@@ -344,6 +377,10 @@ const deleteLead = async (req, res) => {
     }
 
     await lead.destroy();
+
+    // Clear cache for this company to show updated lead list
+    const clearedCount = clearCompanyCache(companyId);
+    logger.info(`Cleared ${clearedCount} cache entries for company ${companyId} after lead deletion`);
 
     res.json({
       success: true,
@@ -564,6 +601,407 @@ const searchLeads = async (req, res) => {
   }
 };
 
+// Export leads to CSV
+const exportLeads = async (req, res) => {
+  try {
+    // Safety check for req.user
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized: User not authenticated'
+      });
+    }
+
+    const { companyId: userCompanyId, role } = req.user;
+    const { 
+      search = '', 
+      source = '', 
+      status = '', 
+      priority = '',
+      allCompanies = false,
+      companyId: queryCompanyId,
+      format = 'csv'
+    } = req.query;
+
+    // Determine which company ID to use
+    let targetCompanyId = userCompanyId;
+    
+    // For super admin, use query companyId if provided
+    if (role === 'super_admin' && queryCompanyId) {
+      targetCompanyId = parseInt(queryCompanyId);
+    }
+
+    // Build query - Super admin can see all companies if allCompanies=true
+    const where = {};
+    
+    // Only filter by company if not super admin or if allCompanies is not requested
+    if (role !== 'super_admin' || !allCompanies) {
+      where.companyId = targetCompanyId;
+    }
+    
+    if (search) {
+      where[Op.or] = [
+        { name: { [Op.like]: `%${search}%` } },
+        { email: { [Op.like]: `%${search}%` } },
+        { phone: { [Op.like]: `%${search}%` } },
+        { notes: { [Op.like]: `%${search}%` } }
+      ];
+    }
+    
+    if (source) where.source = source;
+    if (status) where.status = status;
+    if (priority) where.priority = priority;
+
+    // Get all leads for export (no pagination)
+    const leads = await Lead.findAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      attributes: [
+        'id', 'companyId', 'visitorId', 'name', 'email', 'phone', 
+        'status', 'priority', 'source', 'score', 'notes', 'tags',
+        'createdAt', 'updatedAt', 'lastActivity', 'ipAddress',
+        'referrer', 'userAgent', 'visitCount', 'totalTimeOnSite'
+      ],
+      include: [
+        {
+          model: User,
+          as: 'assignedUser',
+          attributes: ['id', 'firstName', 'lastName'],
+          required: false
+        }
+      ]
+    });
+
+    if (format === 'json') {
+      // Return JSON format
+      return res.json({
+        success: true,
+        data: {
+          leads,
+          count: leads.length,
+          exportedAt: new Date().toISOString(),
+          filters: { search, source, status, priority }
+        }
+      });
+    }
+
+    // Generate CSV format
+    const csvRows = [];
+    
+    // CSV Headers
+    csvRows.push([
+      'ID',
+      'Company ID',
+      'Visitor ID',
+      'Name',
+      'Email',
+      'Phone',
+      'Status',
+      'Priority',
+      'Source',
+      'Score',
+      'Assigned To',
+      'Tags',
+      'Notes',
+      'Created At',
+      'Last Activity',
+      'IP Address',
+      'Referrer',
+      'Visit Count',
+      'Time on Site (seconds)'
+    ]);
+
+    // CSV Data
+    leads.forEach(lead => {
+      csvRows.push([
+        lead.id,
+        lead.companyId,
+        lead.visitorId || '',
+        lead.name || '',
+        lead.email || '',
+        lead.phone || '',
+        lead.status,
+        lead.priority,
+        lead.source || '',
+        lead.score,
+        lead.assignedUser ? `${lead.assignedUser.firstName} ${lead.assignedUser.lastName}` : '',
+        Array.isArray(lead.tags) ? lead.tags.join('; ') : '',
+        lead.notes || '',
+        lead.createdAt ? new Date(lead.createdAt).toISOString() : '',
+        lead.lastActivity ? new Date(lead.lastActivity).toISOString() : '',
+        lead.ipAddress || '',
+        lead.referrer || '',
+        lead.visitCount || 0,
+        lead.totalTimeOnSite || 0
+      ]);
+    });
+
+    // Convert to CSV string
+    const csvContent = csvRows.map(row => 
+      row.map(field => {
+        // Escape quotes and wrap in quotes if contains comma or quote
+        const stringField = String(field || '');
+        if (stringField.includes(',') || stringField.includes('"') || stringField.includes('\n')) {
+          return `"${stringField.replace(/"/g, '""')}"`;
+        }
+        return stringField;
+      }).join(',')
+    ).join('\n');
+
+    // Set headers for CSV download
+    const timestamp = new Date().toISOString().split('T')[0];
+    const filename = `leads_export_${timestamp}.csv`;
+    
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+    
+    res.send(csvContent);
+
+  } catch (error) {
+    logger.error('Error exporting leads:', error.message || error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to export leads',
+      error: error.message
+    });
+  }
+};
+
+// Get chat history for a lead
+const getLeadChatHistory = async (req, res) => {
+  try {
+    // Safety check for req.user
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized: User not authenticated'
+      });
+    }
+
+    const { id: leadId } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+    const { companyId, role } = req.user;
+
+    // Get the lead first to ensure it belongs to this company
+    const leadWhere = { id: leadId };
+    if (role !== 'super_admin') {
+      leadWhere.companyId = companyId;
+    }
+    
+    const lead = await Lead.findOne({
+      where: leadWhere
+    });
+
+    if (!lead) {
+      logger.warn('Lead not found for chat history request', { leadId, companyId, role });
+      return res.status(404).json({
+        success: false,
+        message: 'Lead not found'
+      });
+    }
+
+    logger.info('Found lead for chat history', { 
+      leadId: lead.id, 
+      leadEmail: lead.email, 
+      leadVisitorId: lead.visitorId,
+      leadIpAddress: lead.ipAddress 
+    });
+
+    if (!lead.visitorId) {
+      return res.json({
+        success: true,
+        data: {
+          messages: [],
+          pagination: {
+            currentPage: parseInt(page),
+            totalPages: 0,
+            totalMessages: 0,
+            hasNextPage: false,
+            hasPrevPage: false
+          }
+        }
+      });
+    }
+
+    // Strategy: Use multiple approaches to find chat messages for this lead
+    // 1. Direct sessionId match (if lead has sessionId)
+    // 2. IP address match
+    // 3. Email match through visitor sessions
+    
+    let allMessages = [];
+    let sessionInfo = new Map();
+
+    // Method 1: Direct sessionId match
+    if (lead.sessionId) {
+      logger.info('Searching by direct sessionId', { sessionId: lead.sessionId });
+      const directMessages = await ChatMessage.findAll({
+        where: {
+          companyId: lead.companyId,
+          sessionId: lead.sessionId
+        },
+        attributes: [
+          'id',
+          'messageType', 
+          'content',
+          'timestamp',
+          'sessionId',
+          'metadata'
+        ]
+      });
+      allMessages = allMessages.concat(directMessages);
+      logger.info('Found messages by direct sessionId', { count: directMessages.length });
+    }
+
+    // Method 2: IP address match
+    if (lead.ipAddress) {
+      logger.info('Searching by IP address', { ipAddress: lead.ipAddress });
+      const ipMessages = await ChatMessage.findAll({
+        where: {
+          companyId: lead.companyId,
+          ipAddress: lead.ipAddress
+        },
+        attributes: [
+          'id',
+          'messageType',
+          'content', 
+          'timestamp',
+          'sessionId',
+          'metadata'
+        ]
+      });
+      
+      // Add only unique messages (avoid duplicates from method 1)
+      const existingIds = new Set(allMessages.map(m => m.id));
+      const uniqueIpMessages = ipMessages.filter(m => !existingIds.has(m.id));
+      allMessages = allMessages.concat(uniqueIpMessages);
+      logger.info('Found additional messages by IP', { count: uniqueIpMessages.length });
+    }
+
+    // Method 3: Visitor session match by email
+    if (lead.email && allMessages.length === 0) {
+      logger.info('Searching by email through visitor sessions', { email: lead.email });
+      const visitorSessions = await VisitorSession.findAll({
+        where: {
+          companyId: lead.companyId,
+          visitorEmail: lead.email
+        },
+        attributes: ['sessionToken', 'visitorName', 'visitorEmail', 'createdAt']
+      });
+
+      if (visitorSessions.length > 0) {
+        const sessionTokens = visitorSessions.map(session => session.sessionToken);
+        logger.info('Found visitor sessions by email', { count: visitorSessions.length, tokens: sessionTokens });
+
+        // Store session info for later use
+        visitorSessions.forEach(session => {
+          sessionInfo.set(session.sessionToken, {
+            visitorName: session.visitorName,
+            visitorEmail: session.visitorEmail,
+            sessionDate: session.createdAt
+          });
+        });
+
+        const sessionMessages = await ChatMessage.findAll({
+          where: {
+            companyId: lead.companyId,
+            sessionId: {
+              [Op.in]: sessionTokens
+            }
+          },
+          attributes: [
+            'id',
+            'messageType',
+            'content',
+            'timestamp', 
+            'sessionId',
+            'metadata'
+          ]
+        });
+        allMessages = allMessages.concat(sessionMessages);
+        logger.info('Found messages by visitor session tokens', { count: sessionMessages.length });
+      }
+    }
+
+    // Remove duplicates and sort by timestamp (newest first)
+    const uniqueMessages = Array.from(new Map(allMessages.map(m => [m.id, m])).values())
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    logger.info('Total unique messages found', { count: uniqueMessages.length });
+
+    // If no messages found, return empty result
+    if (uniqueMessages.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          messages: [],
+          pagination: {
+            currentPage: parseInt(page),
+            totalPages: 0,
+            totalMessages: 0,
+            hasNextPage: false,
+            hasPrevPage: false
+          }
+        }
+      });
+    }
+
+    // Apply pagination to the unique messages
+    const totalMessages = uniqueMessages.length;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const totalPages = Math.ceil(totalMessages / parseInt(limit));
+    const paginatedMessages = uniqueMessages.slice(offset, offset + parseInt(limit));
+
+    // Add session info to messages
+    const messagesWithSessions = paginatedMessages.map(message => {
+      const session = sessionInfo.get(message.sessionId);
+      return {
+        ...message.toJSON(),
+        session: session || {
+          visitorName: 'Unknown',
+          visitorEmail: lead.email || 'Unknown',
+          sessionDate: message.timestamp
+        }
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        lead: {
+          id: lead.id,
+          name: lead.name,
+          email: lead.email,
+          visitorId: lead.visitorId
+        },
+        messages: messagesWithSessions,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages,
+          totalMessages,
+          hasNextPage: parseInt(page) < totalPages,
+          hasPrevPage: parseInt(page) > 1,
+          limit: parseInt(limit)
+        }
+      }
+    });
+
+  } catch (error) {
+    logger.error('Error getting lead chat history:', {
+      error: error.message || error,
+      stack: error.stack,
+      leadId: leadId,
+      userId: req.user?.id,
+      companyId: req.user?.companyId
+    });
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get chat history',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getLeads,
   getLeadById,
@@ -572,5 +1010,7 @@ module.exports = {
   deleteLead,
   bulkUpdateLeads,
   getLeadStats,
-  searchLeads
+  searchLeads,
+  exportLeads,
+  getLeadChatHistory
 };

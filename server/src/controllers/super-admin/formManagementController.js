@@ -2,7 +2,7 @@ const Form = require('../../models/company-admin/form-builder/Form');
 const FormSubmission = require('../../models/company-admin/form-builder/FormSubmission');
 const Company = require('../../models/Company');
 const { Op } = require('sequelize');
-const { logger } = require('../../utils/logger');
+const logger = require('../../utils/logger');
 
 // Get all forms across all companies for super admin
 const getAllForms = async (req, res) => {

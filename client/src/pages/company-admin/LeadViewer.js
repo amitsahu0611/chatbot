@@ -22,6 +22,12 @@ const LeadViewer = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({});
   const [selectedLeads, setSelectedLeads] = useState([]);
+  const [showChatModal, setShowChatModal] = useState(false);
+  const [chatHistory, setChatHistory] = useState({
+    messages: [],
+    pagination: { currentPage: 1, totalPages: 0, hasNextPage: false }
+  });
+  const [loadingChat, setLoadingChat] = useState(false);
   
   // Filters
   const [filters, setFilters] = useState({
@@ -188,6 +194,54 @@ const LeadViewer = () => {
         console.error('Error deleting lead:', error);
       }
     }
+  };
+
+  // View chat history for a lead
+  const handleViewChatHistory = async (lead) => {
+    setSelectedLead(lead);
+    setShowChatModal(true);
+    setLoadingChat(true);
+    
+    try {
+      const response = await api.get(`/company-admin/lead-viewer/${lead.id}/chat-history?page=1&limit=10`);
+      if (response.data.success) {
+        setChatHistory(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error loading chat history:', error);
+      setChatHistory({ messages: [], pagination: { currentPage: 1, totalPages: 0, hasNextPage: false } });
+    } finally {
+      setLoadingChat(false);
+    }
+  };
+
+  // Load more chat messages
+  const handleLoadMoreMessages = async () => {
+    if (!chatHistory.pagination.hasNextPage || loadingChat) return;
+    
+    setLoadingChat(true);
+    try {
+      const nextPage = chatHistory.pagination.currentPage + 1;
+      const response = await api.get(`/company-admin/lead-viewer/${selectedLead.id}/chat-history?page=${nextPage}&limit=10`);
+      
+      if (response.data.success) {
+        setChatHistory(prev => ({
+          ...response.data.data,
+          messages: [...prev.messages, ...response.data.data.messages]
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading more messages:', error);
+    } finally {
+      setLoadingChat(false);
+    }
+  };
+
+  // Close chat modal
+  const handleCloseChatModal = () => {
+    setShowChatModal(false);
+    setSelectedLead(null);
+    setChatHistory({ messages: [], pagination: { currentPage: 1, totalPages: 0, hasNextPage: false } });
   };
 
   const handleExport = async () => {
@@ -528,6 +582,13 @@ const LeadViewer = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end space-x-2">
                         <button
+                          onClick={() => handleViewChatHistory(lead)}
+                          className="text-blue-600 hover:text-blue-900"
+                          title="View Chat History"
+                        >
+                          <EyeIcon className="h-4 w-4" />
+                        </button>
+                        <button
                           onClick={() => handleEditLead(lead)}
                           className="text-gray-600 hover:text-gray-900"
                           title="Edit"
@@ -574,6 +635,121 @@ const LeadViewer = () => {
             >
               Next
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Chat History Modal */}
+      {showChatModal && selectedLead && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-4/5 max-w-6xl shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between mb-4 pb-4 border-b">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">
+                    Chat History - {selectedLead.name}
+                  </h3>
+                  <p className="text-sm text-gray-500">{selectedLead.email}</p>
+                </div>
+                <button
+                  onClick={handleCloseChatModal}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <span className="sr-only">Close</span>
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Chat Messages */}
+              <div className="max-h-96 overflow-y-auto mb-4">
+                {loadingChat && chatHistory.messages.length === 0 ? (
+                  <div className="flex justify-center items-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    <span className="ml-2 text-gray-600">Loading chat history...</span>
+                  </div>
+                ) : chatHistory.messages.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <EyeIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                    <p>No chat history found for this lead.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {chatHistory.messages.map((message, index) => (
+                      <div key={message.id} className={`flex ${message.messageType === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-lg lg:max-w-2xl ${message.messageType === 'user' ? 'ml-12' : 'mr-12'}`}>
+                          {/* Sender Label */}
+                          <div className={`text-xs font-medium mb-1 ${
+                            message.messageType === 'user' ? 'text-right text-blue-600' : 'text-left text-gray-600'
+                          }`}>
+                            {message.messageType === 'user' ? (
+                              <span className="flex items-center justify-end">
+                                <span className="mr-1">👤</span>
+                                {message.session?.visitorName || selectedLead.name || 'User'}
+                              </span>
+                            ) : (
+                              <span className="flex items-center">
+                                <span className="mr-1">🤖</span>
+                                Chatbot
+                              </span>
+                            )}
+                          </div>
+                          
+                          {/* Message Bubble */}
+                          <div className={`px-4 py-2 rounded-lg ${
+                            message.messageType === 'user' 
+                              ? 'bg-blue-600 text-white rounded-br-sm' 
+                              : 'bg-gray-200 text-gray-800 rounded-bl-sm'
+                          }`}>
+                            <div className="text-sm">{message.content}</div>
+                            <div className={`text-xs mt-1 ${
+                              message.messageType === 'user' ? 'text-blue-100' : 'text-gray-500'
+                            }`}>
+                              {new Date(message.timestamp).toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Load More Button */}
+              {chatHistory.pagination.hasNextPage && (
+                <div className="flex justify-center mb-4">
+                  <button
+                    onClick={handleLoadMoreMessages}
+                    disabled={loadingChat}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                  >
+                    {loadingChat ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Loading...
+                      </>
+                    ) : (
+                      'Load More Messages'
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* Modal Footer */}
+              <div className="flex justify-between items-center pt-4 border-t">
+                <div className="text-sm text-gray-500">
+                  Total Messages: {chatHistory.pagination.totalMessages || 0}
+                </div>
+                <button
+                  onClick={handleCloseChatModal}
+                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

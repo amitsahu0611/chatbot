@@ -1,6 +1,6 @@
 const { Op } = require('sequelize');
 const Widget = require('../../../models/company-admin/widget-management/Widget');
-const { logger } = require('../../../utils/logger');
+const logger = require('../../../utils/logger');
 
 /**
  * Generate unique widget ID

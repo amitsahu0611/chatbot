@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { auth, authorize } = require('../../../middleware/auth');
+const { cacheMiddleware } = require('../../../middleware/cache');
 const {
   getLeads,
   getLeadById,
@@ -9,7 +10,9 @@ const {
   deleteLead,
   bulkUpdateLeads,
   getLeadStats,
-  searchLeads
+  searchLeads,
+  exportLeads,
+  getLeadChatHistory
 } = require('../../../controllers/company-admin/lead-viewer/leadController');
 
 /**
@@ -65,7 +68,7 @@ const {
  *           type: integer
  *         description: Company ID (for super admin context)
  */
-router.get('/', auth, authorize('company_admin', 'super_admin'), getLeads);
+router.get('/', auth, authorize('company_admin', 'super_admin'), cacheMiddleware('api', 60), getLeads);
 
 /**
  * @swagger
@@ -116,6 +119,117 @@ router.post('/', auth, authorize('company_admin', 'super_admin'), createLead);
  *         description: Number of results
  */
 router.get('/search', auth, authorize('company_admin', 'super_admin'), searchLeads);
+
+/**
+ * @swagger
+ * /api/company-admin/lead-viewer/export:
+ *   get:
+ *     summary: Export leads to CSV or JSON
+ *     tags: [Company Admin - Lead Viewer]
+ *     parameters:
+ *       - in: query
+ *         name: format
+ *         schema:
+ *           type: string
+ *           enum: [csv, json]
+ *           default: csv
+ *         description: Export format
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search term to filter leads
+ *       - in: query
+ *         name: source
+ *         schema:
+ *           type: string
+ *         description: Filter by lead source
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *         description: Filter by lead status
+ *       - in: query
+ *         name: priority
+ *         schema:
+ *           type: string
+ *         description: Filter by lead priority
+ *       - in: query
+ *         name: companyId
+ *         schema:
+ *           type: integer
+ *         description: Company ID (for super admin context)
+ *     responses:
+ *       200:
+ *         description: Leads exported successfully
+ *         content:
+ *           text/csv:
+ *             schema:
+ *               type: string
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     leads:
+ *                       type: array
+ *                     count:
+ *                       type: integer
+ *                     exportedAt:
+ *                       type: string
+ */
+router.get('/export', auth, authorize('company_admin', 'super_admin'), exportLeads);
+
+/**
+ * @swagger
+ * /api/company-admin/lead-viewer/{id}/chat-history:
+ *   get:
+ *     summary: Get chat history for a lead
+ *     tags: [Company Admin - Lead Viewer]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Lead ID
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of messages per page
+ *     responses:
+ *       200:
+ *         description: Chat history retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     lead:
+ *                       type: object
+ *                     messages:
+ *                       type: array
+ *                     pagination:
+ *                       type: object
+ */
+router.get('/:id/chat-history', auth, authorize('company_admin', 'super_admin'), getLeadChatHistory);
 
 /**
  * @swagger

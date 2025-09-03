@@ -429,71 +429,12 @@ const WidgetManagement = () => {
             </div>
           </div>
 
-          <div className="mt-3 p-3 bg-green-50 rounded-md border border-green-200">
-            <h4 className="text-sm font-medium text-green-800 mb-2">✨ Features Included:</h4>
-            <div className="text-xs text-green-700 space-y-1">
-              <div>• AI-powered responses using your company's FAQ database</div>
-              <div>• Smart suggestions based on user input</div>
-              <div>• Lead capture with welcome form</div>
-              <div>• Chat history and session management</div>
-              <div>• Real-time typing indicators</div>
-              <div>• Fully responsive design (mobile, tablet, desktop)</div>
-              <div>• Customizable colors and position</div>
-            </div>
-          </div>
-
-          <div className="mt-3 p-3 bg-amber-50 rounded-md border border-amber-200">
-            <h4 className="text-sm font-medium text-amber-800 mb-2">🔧 Advanced Options:</h4>
-            <div className="text-xs text-amber-700 space-y-1">
-              <div>• To change colors: Update the settings above and generate new code</div>
-              <div>• To change position: Select from dropdown above</div>
-              <div>• For custom integration: Use our JavaScript API</div>
-              <div>• Need help? Contact support with Company ID: <span className="font-mono">{getCurrentCompanyId()}</span></div>
-            </div>
-          </div>
-
-          <div className="mt-4 flex space-x-2">
-            <button 
-              onClick={handlePreviewWidget}
-              className="flex items-center px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-            >
-              <EyeIcon className="h-4 w-4 mr-1" />
-              Preview Widget
-            </button>
-            <button 
-              onClick={handleTestChat}
-              className="flex items-center px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
-            >
-              <ChatBubbleLeftRightIcon className="h-4 w-4 mr-1" />
-              Test Chat
-            </button>
-          </div>
+        
         </div>
       </div>
 
       {/* Widget Statistics */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Widget Statistics</h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-blue-600">1,234</div>
-            <div className="text-sm text-gray-600">Total Interactions</div>
-          </div>
-          <div className="bg-green-50 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-green-600">89%</div>
-            <div className="text-sm text-gray-600">Satisfaction Rate</div>
-          </div>
-          <div className="bg-yellow-50 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-yellow-600">567</div>
-            <div className="text-sm text-gray-600">Unique Visitors</div>
-          </div>
-          <div className="bg-purple-50 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-purple-600">45</div>
-            <div className="text-sm text-gray-600">Leads Generated</div>
-          </div>
-        </div>
-      </div>
+    
 
 
 

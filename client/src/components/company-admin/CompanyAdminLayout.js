@@ -67,7 +67,7 @@ const CompanyAdminLayout = () => {
 
   const navigation = [
     { name: 'Dashboard', href: '/company-admin/dashboard', icon: HomeIcon },
-    { name: 'Form Builder', href: '/company-admin/form-builder', icon: DocumentTextIcon },
+    // { name: 'Form Builder', href: '/company-admin/form-builder', icon: DocumentTextIcon },
     { name: 'Lead Viewer', href: '/company-admin/leads', icon: UserGroupIcon },
     { name: 'FAQ Manager', href: '/company-admin/faqs', icon: QuestionMarkCircleIcon },
     { name: 'Support Settings', href: '/company-admin/support', icon: PhoneIcon },

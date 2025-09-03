@@ -1,5 +1,5 @@
 const ThemeSettings = require('../../models/company-admin/ThemeSettings');
-const { logger } = require('../../utils/logger');
+const logger = require('../../utils/logger');
 
 /**
  * Get theme settings for a company
