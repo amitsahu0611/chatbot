@@ -10,6 +10,7 @@ const logger = require('../../utils/logger');
  * Extract keywords from search query
  */
 const extractKeywords = (query) => {
+  console.log('🔍 Extracting keywords from query:', query);
   if (!query || typeof query !== 'string') return [];
   
   // Convert to lowercase and remove special characters

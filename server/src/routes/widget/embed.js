@@ -835,9 +835,9 @@ function generateWidgetScript(config) {
           }
           
         } else {
-          // No chat history - show registration form for this company
+          // No chat history - check for active session with visitor info first
           try {
-            // Still create a session for tracking
+            console.log('🔍 No chat history found, checking for active session...');
             const sessionResponse = await fetch(\`\${this.config.apiUrl}/api/widget/session/check\`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -848,14 +848,30 @@ function generateWidgetScript(config) {
             });
             
             const sessionData = await sessionResponse.json();
+            console.log('📋 Session check response:', sessionData);
+            
             if (sessionData.success) {
               this.sessionToken = sessionData.data.sessionToken;
+              
+              // Check if user has active session with visitor info (already registered)
+              if (sessionData.data.hasActiveSession && 
+                  sessionData.data.visitorInfo && 
+                  sessionData.data.visitorInfo.email) {
+                
+                console.log('✅ Found active session with visitor info, skipping registration form');
+                this.visitorInfo = sessionData.data.visitorInfo;
+                
+                // Skip registration form and show welcome message
+                this.showWelcomeMessage();
+                return;
+              }
             }
           } catch (sessionError) {
             console.error('Session creation error:', sessionError);
           }
           
-          // Show registration form since no chat history exists
+          // Show registration form only if no active session with visitor info
+          console.log('📝 No active session with visitor info, showing registration form');
           this.showVisitorRegistrationForm();
         }
       } catch (error) {
@@ -1277,6 +1293,35 @@ function generateWidgetScript(config) {
         submitBtn.textContent = '🚀 Start Chatting';
         submitBtn.disabled = false;
       }
+    },
+    
+    // Show welcome message for returning users
+    showWelcomeMessage: function() {
+      console.log('🎉 Showing welcome message for returning user:', this.visitorInfo);
+      
+      const messagesContainer = document.getElementById('nowgray-messages');
+      const loading = document.getElementById('nowgray-loading');
+      
+      if (loading) loading.style.display = 'none';
+      
+      // Create welcome message for returning user
+      const welcomeMessage = {
+        id: 'returning-user-welcome',
+        type: 'bot',
+        content: \`Welcome back, \${this.visitorInfo.name || 'there'}! 👋 
+        
+I remember you from our previous conversation. How can I help you today?\`,
+        timestamp: new Date().toISOString(),
+        quickReplies: [
+          'Continue our conversation',
+          'I have a new question',
+          'Contact information',
+          'Your services'
+        ]
+      };
+      
+      this.messages = [welcomeMessage];
+      this.renderMessages();
     },
     
     // Render messages
