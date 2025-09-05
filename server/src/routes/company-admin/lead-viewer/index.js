@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const { auth, authorize } = require('../../../middleware/auth');
-const { cacheMiddleware } = require('../../../middleware/cache');
 const {
   getLeads,
   getLeadById,
@@ -68,7 +67,7 @@ const {
  *           type: integer
  *         description: Company ID (for super admin context)
  */
-router.get('/', auth, authorize('company_admin', 'super_admin'), cacheMiddleware('api', 60), getLeads);
+router.get('/', auth, authorize('company_admin', 'super_admin'), getLeads);
 
 /**
  * @swagger

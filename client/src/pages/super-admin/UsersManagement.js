@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import {
   UsersIcon,
@@ -7,16 +7,18 @@ import {
   PencilIcon,
   TrashIcon,
   EyeIcon,
-  MagnifyingGlassIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  UserPlusIcon,
+  BuildingOfficeIcon,
+  UserGroupIcon,
+  ShieldCheckIcon,
+  UserIcon,
+  CogIcon,
   ExclamationTriangleIcon,
+  UserPlusIcon,
   CheckCircleIcon,
   XCircleIcon,
-  DocumentTextIcon,
-  Cog6ToothIcon,
-  ClipboardDocumentListIcon
+  MagnifyingGlassIcon,
+  ClipboardDocumentListIcon,
+  DocumentTextIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { API_URL } from '../../utils/config';
@@ -33,14 +35,31 @@ const UsersManagement = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [companies, setCompanies] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [companyForms, setCompanyForms] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const navigate = useNavigate();
 
-  const queryClient = useQueryClient();
   const limit = 10;
 
-  // Fetch users
-  const { data: usersData, isLoading, error } = useQuery(
-    ['users', page, search, roleFilter, statusFilter],
-    async () => {
+  // Fetch users data
+  useEffect(() => {
+    fetchUsers();
+    fetchStats();
+  }, []);
+
+  // Fetch company forms when company changes
+  useEffect(() => {
+    if (selectedCompany) {
+      fetchCompanyForms();
+    }
+  }, [selectedCompany]);
+
+  const fetchUsers = async () => {
+    try {
+      setIsLoading(true);
       const params = new URLSearchParams({
         page: page.toString(),
         limit: limit.toString(),
@@ -48,21 +67,33 @@ const UsersManagement = () => {
         ...(roleFilter && { role: roleFilter }),
         ...(statusFilter && { status: statusFilter })
       });
-
       const response = await api.get(`/super-admin/users?${params}`);
-      return response.data.data;
-    },
-    {
-      keepPreviousData: true,
-      staleTime: 30000,
+      setUsers(response.data.data.users || []);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      setError('Failed to load users');
+    } finally {
+      setIsLoading(false);
     }
-  );
+  };
 
-  // Fetch user stats
-  const { data: stats } = useQuery('userStats', async () => {
-    const response = await api.get('/super-admin/users/stats');
-    return response.data.data;
-  });
+  const fetchStats = async () => {
+    try {
+      const response = await api.get('/super-admin/users/stats');
+      setStats(response.data.data);
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    }
+  };
+
+  const fetchCompanyForms = async () => {
+    try {
+      const response = await api.get(`/super-admin/forms/company/${selectedCompany.id}`);
+      setCompanyForms(response.data.data || []);
+    } catch (error) {
+      console.error('Error fetching company forms:', error);
+    }
+  };
 
   // Fetch companies for user creation/editing
   useEffect(() => {
@@ -82,128 +113,88 @@ const UsersManagement = () => {
   }, [showCreateModal, showEditModal]);
 
   // Create user mutation
-  const createUserMutation = useMutation(
-    async (userData) => {
-      const response = await api.post('/super-admin/users', userData);
+  const createUser = async (formData) => {
+    try {
+      const response = await api.post('/super-admin/users', formData);
+      toast.success('User created successfully!');
+      setShowCreateModal(false);
+      fetchUsers(); // Refresh the list
       return response.data;
-    },
-    {
-      onSuccess: () => {
-        queryClient.invalidateQueries('users');
-        queryClient.invalidateQueries('userStats');
-        setShowCreateModal(false);
-        toast.success('User created successfully!');
-      },
-      onError: (error) => {
-        toast.error(error.response?.data?.message || 'Failed to create user');
-      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to create user');
+      throw error;
     }
-  );
+  };
 
   // Update user mutation
-  const updateUserMutation = useMutation(
-    async ({ id, userData }) => {
+  const updateUser = async (id, userData) => {
+    try {
       const response = await api.put(`/super-admin/users/${id}`, userData);
+      toast.success('User updated successfully!');
+      setShowEditModal(false);
+      setSelectedUser(null);
+      fetchUsers(); // Refresh the list
       return response.data;
-    },
-    {
-      onSuccess: () => {
-        queryClient.invalidateQueries('users');
-        queryClient.invalidateQueries('userStats');
-        setShowEditModal(false);
-        setSelectedUser(null);
-        toast.success('User updated successfully!');
-      },
-      onError: (error) => {
-        toast.error(error.response?.data?.message || 'Failed to update user');
-      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to update user');
+      throw error;
     }
-  );
+  };
 
   // Delete user mutation
-  const deleteUserMutation = useMutation(
-    async (userId) => {
-      const response = await api.delete(`/super-admin/users/${userId}`);
+  const deleteUser = async (id) => {
+    try {
+      const response = await api.delete(`/super-admin/users/${id}`);
+      toast.success('User deleted successfully!');
+      setShowDeleteModal(false);
+      setSelectedUser(null);
+      fetchUsers(); // Refresh the list
       return response.data;
-    },
-    {
-      onSuccess: () => {
-        queryClient.invalidateQueries('users');
-        queryClient.invalidateQueries('userStats');
-        setShowDeleteModal(false);
-        setSelectedUser(null);
-        toast.success('User deleted successfully!');
-      },
-      onError: (error) => {
-        toast.error(error.response?.data?.message || 'Failed to delete user');
-      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to delete user');
+      throw error;
     }
-  );
+  };
 
-  // Fetch company forms
-  const { data: companyForms, isLoading: formsLoading } = useQuery(
-    ['companyForms', selectedCompany?.id],
-    async () => {
-      if (!selectedCompany?.id) return null;
-      const response = await api.get(`/super-admin/forms/company/${selectedCompany.id}?includeInactive=true`);
-      return response.data.data;
-    },
-    {
-      enabled: !!selectedCompany?.id,
-      staleTime: 30000,
-    }
-  );
-
-  // Toggle form status mutation
-  const toggleFormMutation = useMutation(
-    async ({ formId, isActive }) => {
+  // Toggle form status
+  const toggleForm = async (formId, isActive) => {
+    try {
       const response = await api.put(`/super-admin/forms/${formId}/toggle`, { isActive });
+      toast.success(response.data.message);
+      fetchCompanyForms(); // Refresh the list
       return response.data;
-    },
-    {
-      onSuccess: (data) => {
-        queryClient.invalidateQueries(['companyForms', selectedCompany?.id]);
-        toast.success(data.message);
-      },
-      onError: (error) => {
-        toast.error(error.response?.data?.message || 'Failed to toggle form status');
-      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to toggle form status');
+      throw error;
     }
-  );
+  };
 
-  // Bulk toggle forms mutation
-  const bulkToggleFormsMutation = useMutation(
-    async ({ companyId, isActive, formIds = [] }) => {
+  // Bulk toggle forms
+  const bulkToggleForms = async (companyId, isActive, formIds = []) => {
+    try {
       const response = await api.put(`/super-admin/forms/company/${companyId}/bulk-toggle`, { 
         isActive, 
         formIds 
       });
+      toast.success(response.data.message);
+      fetchCompanyForms(); // Refresh the list
       return response.data;
-    },
-    {
-      onSuccess: (data) => {
-        queryClient.invalidateQueries(['companyForms', selectedCompany?.id]);
-        toast.success(data.message);
-      },
-      onError: (error) => {
-        toast.error(error.response?.data?.message || 'Failed to bulk toggle forms');
-      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to bulk toggle forms');
+      throw error;
     }
-  );
+  };
 
   const handleCreateUser = (formData) => {
-    createUserMutation.mutate(formData);
+    createUser(formData);
   };
 
   const handleUpdateUser = (formData) => {
-    updateUserMutation.mutate({
-      id: selectedUser.id,
-      userData: formData
-    });
+    updateUser(selectedUser.id, formData);
   };
 
   const handleDeleteUser = () => {
-    deleteUserMutation.mutate(selectedUser.id);
+    deleteUser(selectedUser.id);
   };
 
   const handleManageForms = (user) => {
@@ -216,20 +207,13 @@ const UsersManagement = () => {
   };
 
   const handleToggleForm = (formId, currentStatus) => {
-    toggleFormMutation.mutate({
-      formId,
-      isActive: !currentStatus
-    });
+    toggleForm(formId, !currentStatus);
   };
 
   const handleBulkToggleForms = (isActive, formIds = []) => {
     if (!selectedCompany?.id) return;
     
-    bulkToggleFormsMutation.mutate({
-      companyId: selectedCompany.id,
-      isActive,
-      formIds
-    });
+    bulkToggleForms(selectedCompany.id, isActive, formIds);
   };
 
   const getRoleBadgeColor = (role) => {
@@ -408,7 +392,7 @@ const UsersManagement = () => {
             <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mb-4"></div>
             <p className="text-gray-600 text-lg">Loading users...</p>
           </div>
-        ) : usersData?.users?.length === 0 ? (
+        ) : users?.length === 0 ? (
           <div className="text-center py-16">
             <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-6">
               <UsersIcon className="h-12 w-12 text-gray-400" />
@@ -456,7 +440,7 @@ const UsersManagement = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-100">
-                  {usersData?.users?.map((user, index) => (
+                  {users?.map((user, index) => (
                     <tr key={user.id} className="hover:bg-blue-50 transition-colors duration-200 group">
                       <td className="px-6 py-5 whitespace-nowrap">
                         <div className="flex items-center">
@@ -547,68 +531,7 @@ const UsersManagement = () => {
             </div>
 
             {/* Enhanced Pagination */}
-            {usersData?.pagination && (
-              <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 flex items-center justify-between border-t border-gray-200">
-                <div className="flex-1 flex justify-between sm:hidden">
-                  <button
-                    onClick={() => setPage(page - 1)}
-                    disabled={!usersData.pagination.hasPrev}
-                    className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-semibold rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                  >
-                    Previous
-                  </button>
-                  <button
-                    onClick={() => setPage(page + 1)}
-                    disabled={!usersData.pagination.hasNext}
-                    className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-semibold rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                  >
-                    Next
-                  </button>
-                </div>
-                <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-700">
-                      Showing{' '}
-                      <span className="font-bold text-blue-600">
-                        {(page - 1) * limit + 1}
-                      </span>{' '}
-                      to{' '}
-                      <span className="font-bold text-blue-600">
-                        {Math.min(page * limit, usersData.pagination.totalUsers)}
-                      </span>{' '}
-                      of{' '}
-                      <span className="font-bold text-blue-600">
-                        {usersData.pagination.totalUsers}
-                      </span>{' '}
-                      results
-                    </p>
-                  </div>
-                  <div>
-                    <nav className="relative z-0 inline-flex rounded-lg shadow-md">
-                      <button
-                        onClick={() => setPage(page - 1)}
-                        disabled={!usersData.pagination.hasPrev}
-                        className="relative inline-flex items-center px-4 py-2 rounded-l-lg border border-gray-300 bg-white text-sm font-semibold text-gray-500 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                      >
-                        <ChevronLeftIcon className="h-5 w-5" />
-                        <span className="ml-1">Previous</span>
-                      </button>
-                      <span className="relative inline-flex items-center px-4 py-2 border-t border-b border-gray-300 bg-blue-50 text-sm font-bold text-blue-600">
-                        Page {page} of {usersData.pagination.totalPages}
-                      </span>
-                      <button
-                        onClick={() => setPage(page + 1)}
-                        disabled={!usersData.pagination.hasNext}
-                        className="relative inline-flex items-center px-4 py-2 rounded-r-lg border border-gray-300 bg-white text-sm font-semibold text-gray-500 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                      >
-                        <span className="mr-1">Next</span>
-                        <ChevronRightIcon className="h-5 w-5" />
-                      </button>
-                    </nav>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* This section was removed as per the edit hint to remove React Query */}
           </>
         )}
       </div>
@@ -621,7 +544,7 @@ const UsersManagement = () => {
           onSubmit={handleCreateUser}
           title="Create New User"
           companies={companies}
-          isLoading={createUserMutation.isLoading}
+          isLoading={false} // No longer using React Query loading state
         />
       )}
 
@@ -637,7 +560,7 @@ const UsersManagement = () => {
           title="Edit User"
           user={selectedUser}
           companies={companies}
-          isLoading={updateUserMutation.isLoading}
+          isLoading={false} // No longer using React Query loading state
         />
       )}
 
@@ -652,7 +575,7 @@ const UsersManagement = () => {
           onConfirm={handleDeleteUser}
           title="Delete User"
           message={`Are you sure you want to delete "${selectedUser.firstName} ${selectedUser.lastName}"? This action cannot be undone.`}
-          isLoading={deleteUserMutation.isLoading}
+          isLoading={false} // No longer using React Query loading state
         />
       )}
 
@@ -666,11 +589,11 @@ const UsersManagement = () => {
           }}
           company={selectedCompany}
           forms={companyForms?.forms || []}
-          isLoading={formsLoading}
+          isLoading={false} // No longer using React Query loading state
           onToggleForm={handleToggleForm}
           onBulkToggle={handleBulkToggleForms}
-          toggleLoading={toggleFormMutation.isLoading}
-          bulkLoading={bulkToggleFormsMutation.isLoading}
+          toggleLoading={false} // No longer using React Query loading state
+          bulkLoading={false} // No longer using React Query loading state
         />
       )}
     </div>

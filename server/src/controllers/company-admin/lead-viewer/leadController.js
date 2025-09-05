@@ -4,7 +4,6 @@ const VisitorSession = require('../../../models/widget/VisitorSession');
 const { Op } = require('sequelize');
 const { sequelize } = require('../../../config/database');
 const logger = require('../../../utils/logger');
-const { clearCompanyCache } = require('../../../middleware/cache');
 
 // Get all leads with filtering and pagination
 const getLeads = async (req, res) => {
@@ -284,9 +283,7 @@ const createLead = async (req, res) => {
       metadata: leadData.metadata || {}
     });
 
-    // Clear cache for this company to show updated lead list
-    const clearedCount = clearCompanyCache(userCompanyId);
-    logger.info(`Cleared ${clearedCount} cache entries for company ${userCompanyId} after lead creation`);
+    logger.info(`Lead created successfully with ID: ${lead.id} for company ${userCompanyId}`);
 
     res.status(201).json({
       success: true,
@@ -335,9 +332,7 @@ const updateLead = async (req, res) => {
 
     await lead.save();
 
-    // Clear cache for this company to show updated lead list
-    const clearedCount = clearCompanyCache(companyId);
-    logger.info(`Cleared ${clearedCount} cache entries for company ${companyId} after lead update`);
+    logger.info(`Lead updated successfully with ID: ${id} for company ${companyId}`);
 
     res.json({
       success: true,
@@ -378,9 +373,7 @@ const deleteLead = async (req, res) => {
 
     await lead.destroy();
 
-    // Clear cache for this company to show updated lead list
-    const clearedCount = clearCompanyCache(companyId);
-    logger.info(`Cleared ${clearedCount} cache entries for company ${companyId} after lead deletion`);
+    logger.info(`Lead deleted successfully with ID: ${id} for company ${companyId}`);
 
     res.json({
       success: true,

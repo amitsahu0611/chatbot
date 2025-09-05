@@ -83,16 +83,11 @@ const getWidgetScript = async (req, res) => {
       apiUrl
     });
 
-    // Set appropriate headers (no cache for development)
-    res.set({
-      'Content-Type': 'application/javascript',
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache',
-      'Expires': '0',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET',
-      'Access-Control-Allow-Headers': 'Content-Type'
-    });
+    // Set appropriate headers for development
+    res.setHeader('Content-Type', 'text/html');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
     res.send(widgetScript);
   } catch (error) {

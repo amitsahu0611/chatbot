@@ -1,23 +1,23 @@
-import React, { useState } from 'react';
-import { useQuery } from 'react-query';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
-
+import { API_URL } from '../../utils/config';
 import {
-  DocumentTextIcon,
-  UserGroupIcon,
+  BuildingOfficeIcon,
+  UsersIcon,
   ChatBubbleLeftRightIcon,
-  QuestionMarkCircleIcon,
-  ExclamationTriangleIcon,
-  ArrowUpIcon,
-  ArrowDownIcon,
+  DocumentTextIcon,
   EyeIcon,
   PlusIcon,
   PlayIcon,
   StopIcon,
+  ArrowUpIcon,
+  ArrowDownIcon,
+  UserGroupIcon,
+  QuestionMarkCircleIcon,
+  ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
-import { Line, Doughnut } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -27,8 +27,9 @@ import {
   ArcElement,
   Title,
   Tooltip,
-  Legend,
+  Legend
 } from 'chart.js';
+import { Line, Doughnut } from 'react-chartjs-2';
 
 ChartJS.register(
   CategoryScale,
@@ -45,21 +46,28 @@ const CompanyDashboard = () => {
   const { user, getCurrentCompanyId } = useAuth();
   const navigate = useNavigate();
   const [showWidget, setShowWidget] = useState(false);
+  const [dashboardData, setDashboardData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
   const companyId = getCurrentCompanyId();
   
-  // Fetch real dashboard data
-  const { data: dashboardData, isLoading } = useQuery(
-    ['dashboardStats', companyId], 
-    async () => {
-      const response = await api.get(`/company-admin/dashboard/stats?companyId=${companyId}`);
-      return response.data.data;
-    },
-    {
-      enabled: !!companyId,
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      cacheTime: 10 * 60 * 1000, // 10 minutes
+  // Fetch dashboard data
+  useEffect(() => {
+    if (companyId) {
+      fetchDashboardData();
     }
-  );
+  }, [companyId]);
+
+  const fetchDashboardData = async () => {
+    try {
+      setIsLoading(true);
+      const response = await api.get(`/company-admin/dashboard/stats?companyId=${companyId}`);
+      setDashboardData(response.data.data);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Extract data from dashboard response
   const stats = dashboardData?.stats || {};
@@ -111,6 +119,7 @@ const CompanyDashboard = () => {
 
   const chartOptions = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: {
         position: 'top',
@@ -125,6 +134,7 @@ const CompanyDashboard = () => {
 
   const doughnutOptions = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: {
         position: 'bottom',
@@ -176,13 +186,29 @@ const CompanyDashboard = () => {
 
   const handleExportLeads = async () => {
     try {
-      const response = await api.post('/company-admin/lead-viewer/export', {
+      const companyId = getCurrentCompanyId();
+      const params = new URLSearchParams({
         format: 'csv',
-        filters: {} // Export all leads
+        companyId: companyId
       });
       
+      // Use fetch for file download instead of api.get
+      const response = await fetch(`${API_URL}/api/company-admin/lead-viewer/export?${params}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      // Get the CSV content as text
+      const csvContent = await response.text();
+      
       // Create and download CSV file
-      const csvContent = response.data.data.csvData;
       const blob = new Blob([csvContent], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -290,11 +316,15 @@ const CompanyDashboard = () => {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="card">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Weekly Activity</h3>
-          <Line data={chartData} options={chartOptions} />
+          <div style={{ height: '400px' }}>
+            <Line data={chartData} options={chartOptions} />
+          </div>
         </div>
         <div className="card">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Lead Sources</h3>
-          <Doughnut data={leadSourceData} options={doughnutOptions} />
+          <div style={{ height: '400px' }}>
+            <Doughnut data={leadSourceData} options={doughnutOptions} />
+          </div>
         </div>
       </div>
 

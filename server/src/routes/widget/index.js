@@ -46,7 +46,6 @@ router.get('/chat.js', (req, res) => {
   res.removeHeader('Cross-Origin-Resource-Policy');
   
   res.setHeader('Content-Type', 'application/javascript');
-  res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
   res.setHeader('Access-Control-Allow-Origin', '*'); // Allow all origins for widget scripts
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');

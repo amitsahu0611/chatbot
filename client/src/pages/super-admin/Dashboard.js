@@ -1,21 +1,21 @@
-import React, { useState } from 'react';
-import { useQuery } from 'react-query';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
-
 import {
   BuildingOfficeIcon,
   UsersIcon,
   ChatBubbleLeftRightIcon,
-  CurrencyDollarIcon,
-  ArrowUpIcon,
-  ArrowDownIcon,
-  ChartBarIcon,
-  Cog6ToothIcon,
+  DocumentTextIcon,
+  EyeIcon,
+  PlusIcon,
   PlayIcon,
   StopIcon,
+  ArrowUpIcon,
+  ArrowDownIcon,
+  CurrencyDollarIcon,
+  ChartBarIcon,
+  Cog6ToothIcon
 } from '@heroicons/react/24/outline';
-import { Line, Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -25,8 +25,9 @@ import {
   BarElement,
   Title,
   Tooltip,
-  Legend,
+  Legend
 } from 'chart.js';
+import { Line, Bar } from 'react-chartjs-2';
 
 ChartJS.register(
   CategoryScale,
@@ -41,34 +42,42 @@ ChartJS.register(
 
 const SuperAdminDashboard = () => {
   const [showWidget, setShowWidget] = useState(false);
+  const [stats, setStats] = useState(null);
+  const [recentActivity, setRecentActivity] = useState(null);
+  const [chartData, setChartData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
   
-  // Fetch real dashboard statistics
-  const { data: stats, isLoading, error } = useQuery('superAdminStats', async () => {
-    const response = await api.get('/super-admin/dashboard/stats');
-    return response.data.data;
-  }, {
-    refetchInterval: 30000, // Refetch every 30 seconds
-    staleTime: 10000, // Data is fresh for 10 seconds
-  });
+  // Fetch dashboard data
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
 
-  // Fetch recent activity
-  const { data: recentActivity } = useQuery('recentActivity', async () => {
-    const response = await api.get('/super-admin/dashboard/activity?limit=10');
-    return response.data.data;
-  }, {
-    refetchInterval: 60000, // Refetch every minute
-    staleTime: 30000, // Data is fresh for 30 seconds
-  });
-
-  // Fetch chart data
-  const { data: chartData } = useQuery('chartData', async () => {
-    const response = await api.get('/super-admin/dashboard/charts?months=6');
-    return response.data.data;
-  }, {
-    refetchInterval: 300000, // Refetch every 5 minutes
-    staleTime: 120000, // Data is fresh for 2 minutes
-  });
+  const fetchDashboardData = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Fetch stats
+      const statsResponse = await api.get('/super-admin/dashboard/stats');
+      setStats(statsResponse.data.data);
+      
+      // Fetch recent activity
+      const activityResponse = await api.get('/super-admin/dashboard/activity?limit=10');
+      setRecentActivity(activityResponse.data.data);
+      
+      // Fetch chart data
+      const chartResponse = await api.get('/super-admin/dashboard/charts?months=6');
+      setChartData(chartResponse.data.data);
+      
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      setError('Failed to load dashboard data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Prepare chart data from API response
   const growthChartData = chartData ? {

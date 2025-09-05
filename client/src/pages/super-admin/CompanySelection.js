@@ -77,21 +77,23 @@ const CompanySelection = () => {
             </div>
           ) : (
             <div className="space-y-3">
-              {companies.map((company) => (
-                <button
-                  key={company.id}
-                  onClick={() => handleCompanySelect(company)}
-                  className="w-full flex items-center p-4 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-colors duration-200 text-left"
-                >
-                  <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center mr-4">
-                    <BuildingOfficeIcon className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-lg font-medium text-gray-900">{company.name}</h3>
-                    <p className="text-sm text-gray-500">{company.email}</p>
-                  </div>
-                </button>
-              ))}
+              {companies
+                .filter(company => company.isActive === true)
+                .map((company) => (
+                  <button
+                    key={company.id}
+                    onClick={() => handleCompanySelect(company)}
+                    className="w-full flex items-center p-4 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-colors duration-200 text-left"
+                  >
+                    <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center mr-4">
+                      <BuildingOfficeIcon className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-medium text-gray-900">{company.name}</h3>
+                      <p className="text-sm text-gray-500">{company.email}</p>
+                    </div>
+                  </button>
+                ))}
             </div>
           )}
         </div>

@@ -14,8 +14,11 @@ import {
   TrashIcon
 } from '@heroicons/react/24/outline';
 import api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import toast from 'react-hot-toast';
 
 const SupportSettings = () => {
+  const { getCurrentCompanyId } = useAuth();
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -30,7 +33,15 @@ const SupportSettings = () => {
   const [socialSettings, setSocialSettings] = useState({});
   const [escalationSettings, setEscalationSettings] = useState({});
   const [notificationSettings, setNotificationSettings] = useState({});
-  const [businessHours, setBusinessHours] = useState({});
+  const [businessHours, setBusinessHours] = useState({
+    monday: { enabled: true, start: '09:00', end: '17:00' },
+    tuesday: { enabled: true, start: '09:00', end: '17:00' },
+    wednesday: { enabled: true, start: '09:00', end: '17:00' },
+    thursday: { enabled: true, start: '09:00', end: '17:00' },
+    friday: { enabled: true, start: '09:00', end: '17:00' },
+    saturday: { enabled: false, start: '09:00', end: '17:00' },
+    sunday: { enabled: false, start: '09:00', end: '17:00' }
+  });
   const [timezone, setTimezone] = useState('UTC');
 
   const tabs = [
@@ -44,15 +55,11 @@ const SupportSettings = () => {
     { id: 'business-hours', name: 'Business Hours', icon: ClockIcon }
   ];
 
-  useEffect(() => {
-    fetchSettings();
-    fetchBusinessHoursStatus();
-  }, []);
-
   const fetchSettings = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/company-admin/support-settings');
+      const companyId = getCurrentCompanyId();
+      const response = await api.get(`/company-admin/support-settings?companyId=${companyId}`);
       const data = response.data.data;
       setSettings(data);
       
@@ -63,7 +70,15 @@ const SupportSettings = () => {
       setSocialSettings(data.social || {});
       setEscalationSettings(data.escalation || {});
       setNotificationSettings(data.notifications || {});
-      setBusinessHours(data.businessHours || {});
+      setBusinessHours(data.businessHours || {
+        monday: { enabled: true, start: '09:00', end: '17:00' },
+        tuesday: { enabled: true, start: '09:00', end: '17:00' },
+        wednesday: { enabled: true, start: '09:00', end: '17:00' },
+        thursday: { enabled: true, start: '09:00', end: '17:00' },
+        friday: { enabled: true, start: '09:00', end: '17:00' },
+        saturday: { enabled: false, start: '09:00', end: '17:00' },
+        sunday: { enabled: false, start: '09:00', end: '17:00' }
+      });
       setTimezone(data.timezone || 'UTC');
     } catch (error) {
       console.error('Error fetching settings:', error);
@@ -74,17 +89,28 @@ const SupportSettings = () => {
 
   const fetchBusinessHoursStatus = async () => {
     try {
-      const response = await api.get('/company-admin/support-settings/business-hours-status');
+      const companyId = getCurrentCompanyId();
+      const response = await api.get(`/company-admin/support-settings/business-hours-status?companyId=${companyId}`);
       setBusinessHoursStatus(response.data.data);
     } catch (error) {
       console.error('Error fetching business hours status:', error);
     }
   };
 
+  useEffect(() => {
+    const companyId = getCurrentCompanyId();
+    if (companyId) {
+      fetchSettings();
+      fetchBusinessHoursStatus();
+    }
+  }, [getCurrentCompanyId]);
+
   const handleSave = async () => {
     try {
       setSaving(true);
+      const companyId = getCurrentCompanyId();
       const updateData = {
+        companyId,
         phone: phoneSettings,
         email: emailSettings,
         chat: chatSettings,
@@ -99,10 +125,10 @@ const SupportSettings = () => {
       setSettings(response.data.data);
       
       // Show success message
-      alert('Settings saved successfully!');
+      toast.success('Settings saved successfully!');
     } catch (error) {
       console.error('Error saving settings:', error);
-      alert('Error saving settings. Please try again.');
+      toast.error('Error saving settings. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -113,7 +139,11 @@ const SupportSettings = () => {
       const testEmail = prompt('Enter email address to test:');
       if (!testEmail) return;
 
-      const response = await api.post('/company-admin/support-settings/test-email', { email: testEmail });
+      const companyId = getCurrentCompanyId();
+      const response = await api.post('/company-admin/support-settings/test-email', { 
+        email: testEmail,
+        companyId 
+      });
       setTestResults(prev => ({
         ...prev,
         email: { success: true, message: 'Test email sent successfully!' }
@@ -135,7 +165,11 @@ const SupportSettings = () => {
       const testPhone = prompt('Enter phone number to test:');
       if (!testPhone) return;
 
-      const response = await api.post('/company-admin/support-settings/test-phone', { phone: testPhone });
+      const companyId = getCurrentCompanyId();
+      const response = await api.post('/company-admin/support-settings/test-phone', { 
+        phone: testPhone,
+        companyId 
+      });
       setTestResults(prev => ({
         ...prev,
         phone: { success: true, message: 'Test call initiated successfully!' }
@@ -156,13 +190,15 @@ const SupportSettings = () => {
     try {
       const webhookUrl = notificationSettings.slack?.webhookUrl;
       if (!webhookUrl) {
-        alert('Please configure Slack webhook URL first.');
+        toast.error('Please configure Slack webhook URL first.');
         return;
       }
 
+      const companyId = getCurrentCompanyId();
       const response = await api.post('/company-admin/support-settings/test-slack', {
         webhookUrl,
-        channel: notificationSettings.slack?.channel || ''
+        channel: notificationSettings.slack?.channel || '',
+        companyId
       });
       
       setTestResults(prev => ({
@@ -187,23 +223,32 @@ const SupportSettings = () => {
     }
 
     try {
-      const response = await api.post('/company-admin/support-settings/reset');
+      const companyId = getCurrentCompanyId();
+      const response = await api.post('/company-admin/support-settings/reset', { companyId });
       setSettings(response.data.data);
       
       // Reset form states
-      setPhoneSettings(response.data.data.phone);
-      setEmailSettings(response.data.data.email);
-      setChatSettings(response.data.data.chat);
-      setSocialSettings(response.data.data.social);
-      setEscalationSettings(response.data.data.escalation);
-      setNotificationSettings(response.data.data.notifications);
-      setBusinessHours(response.data.data.businessHours);
-      setTimezone(response.data.data.timezone);
+      setPhoneSettings(response.data.data.phone || {});
+      setEmailSettings(response.data.data.email || {});
+      setChatSettings(response.data.data.chat || {});
+      setSocialSettings(response.data.data.social || {});
+      setEscalationSettings(response.data.data.escalation || {});
+      setNotificationSettings(response.data.data.notifications || {});
+      setBusinessHours(response.data.data.businessHours || {
+        monday: { enabled: true, start: '09:00', end: '17:00' },
+        tuesday: { enabled: true, start: '09:00', end: '17:00' },
+        wednesday: { enabled: true, start: '09:00', end: '17:00' },
+        thursday: { enabled: true, start: '09:00', end: '17:00' },
+        friday: { enabled: true, start: '09:00', end: '17:00' },
+        saturday: { enabled: false, start: '09:00', end: '17:00' },
+        sunday: { enabled: false, start: '09:00', end: '17:00' }
+      });
+      setTimezone(response.data.data.timezone || 'UTC');
       
-      alert('Settings reset to default successfully!');
+      toast.success('Settings reset to default successfully!');
     } catch (error) {
       console.error('Error resetting settings:', error);
-      alert('Error resetting settings. Please try again.');
+      toast.error('Error resetting settings. Please try again.');
     }
   };
 
@@ -223,14 +268,14 @@ const SupportSettings = () => {
   const removeEscalationRule = (index) => {
     setEscalationSettings(prev => ({
       ...prev,
-      rules: prev.rules.filter((_, i) => i !== index)
+      rules: (prev.rules || []).filter((_, i) => i !== index)
     }));
   };
 
   const updateEscalationRule = (index, field, value) => {
     setEscalationSettings(prev => ({
       ...prev,
-      rules: prev.rules.map((rule, i) => 
+      rules: (prev.rules || []).map((rule, i) => 
         i === index ? { ...rule, [field]: value } : rule
       )
     }));
@@ -254,7 +299,7 @@ const SupportSettings = () => {
       ...prev,
       email: {
         ...prev.email,
-        recipients: prev.email.recipients.filter((_, i) => i !== index)
+        recipients: (prev.email?.recipients || []).filter((_, i) => i !== index)
       }
     }));
   };
@@ -837,7 +882,7 @@ const SupportSettings = () => {
                           type="email"
                           value={email}
                           onChange={(e) => {
-                            const newRecipients = [...notificationSettings.email.recipients];
+                            const newRecipients = [...(notificationSettings.email?.recipients || [])];
                             newRecipients[index] = e.target.value;
                             setNotificationSettings(prev => ({
                               ...prev,
@@ -932,10 +977,10 @@ const SupportSettings = () => {
                       <label className="flex items-center">
                         <input
                           type="checkbox"
-                          checked={hours.enabled || false}
+                          checked={hours?.enabled || false}
                           onChange={(e) => setBusinessHours(prev => ({
                             ...prev,
-                            [day]: { ...prev[day], enabled: e.target.checked }
+                            [day]: { ...(prev[day] || {}), enabled: e.target.checked }
                           }))}
                           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
@@ -947,20 +992,20 @@ const SupportSettings = () => {
                     <div className="flex items-center space-x-2">
                       <input
                         type="time"
-                        value={hours.start || '09:00'}
+                        value={hours?.start || '09:00'}
                         onChange={(e) => setBusinessHours(prev => ({
                           ...prev,
-                          [day]: { ...prev[day], start: e.target.value }
+                          [day]: { ...(prev[day] || {}), start: e.target.value }
                         }))}
                         className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                       <span className="text-gray-500">to</span>
                       <input
                         type="time"
-                        value={hours.end || '17:00'}
+                        value={hours?.end || '17:00'}
                         onChange={(e) => setBusinessHours(prev => ({
                           ...prev,
-                          [day]: { ...prev[day], end: e.target.value }
+                          [day]: { ...(prev[day] || {}), end: e.target.value }
                         }))}
                         className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />

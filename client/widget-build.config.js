@@ -84,34 +84,11 @@ module.exports = {
     }
   },
   optimization: {
-    minimizer: [
-      new TerserPlugin({
-        terserOptions: {
-          compress: {
-            drop_console: true,
-            drop_debugger: true,
-            pure_funcs: ['console.log']
-          },
-          mangle: {
-            safari10: true
-          },
-          format: {
-            comments: false
-          }
-        },
-        extractComments: false
-      })
-    ],
+    minimize: true,
     splitChunks: {
       chunks: 'all',
-      cacheGroups: {
-        vendor: {
-          test: /[\\/]node_modules[\\/]/,
-          name: 'vendors',
-          chunks: 'all',
-          priority: 10
-        }
-      }
+      maxInitialRequests: Infinity,
+      minSize: 0,
     }
   },
   plugins: [

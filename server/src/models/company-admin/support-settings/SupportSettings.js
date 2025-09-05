@@ -267,4 +267,17 @@ const SupportSettings = sequelize.define('SupportSettings', {
   ]
 });
 
+// Ensure table exists - force recreate to fix schema issues
+SupportSettings.sync({ force: false, alter: true }).then(() => {
+  console.log('✅ SupportSettings table synced with schema updates');
+}).catch(error => {
+  console.error('❌ Error syncing SupportSettings table:', error.message);
+  console.log('Trying to sync without force...');
+  SupportSettings.sync().then(() => {
+    console.log('✅ SupportSettings table synced (basic)');
+  }).catch(fallbackError => {
+    console.error('❌ Fallback sync also failed:', fallbackError.message);
+  });
+});
+
 module.exports = SupportSettings;

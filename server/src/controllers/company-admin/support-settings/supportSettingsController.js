@@ -4,25 +4,31 @@ const logger = require('../../../utils/logger');
 // Get support settings
 const getSupportSettings = async (req, res) => {
   try {
-    const { companyId } = req.user;
+    const companyId = parseInt(req.query.companyId) || req.user?.companyId;
 
-    let settings = await SupportSettings.findOne({ companyId })
-      .populate('createdBy', 'name email')
-      .populate('updatedBy', 'name email')
-      .lean();
+    if (!companyId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Company ID is required'
+      });
+    }
+
+    logger.info(`Fetching support settings for company ID: ${companyId}`);
+
+    let settings = await SupportSettings.findOne({ 
+      where: { companyId: companyId }
+    });
 
     // If no settings exist, create default settings
     if (!settings) {
-      settings = new SupportSettings({
-        companyId,
-        createdBy: req.user.userId
-      });
-      await settings.save();
+      logger.info(`No settings found for company ${companyId}, creating default settings`);
       
-      settings = await SupportSettings.findOne({ companyId })
-        .populate('createdBy', 'name email')
-        .populate('updatedBy', 'name email')
-        .lean();
+      settings = await SupportSettings.create({
+        companyId: companyId,
+        createdBy: req.user?.userId || null
+      });
+      
+      logger.info(`Created new support settings for company ${companyId} with ID: ${settings.id}`);
     }
 
     res.json({
@@ -41,37 +47,41 @@ const getSupportSettings = async (req, res) => {
 // Update support settings
 const updateSupportSettings = async (req, res) => {
   try {
-    const { companyId, userId } = req.user;
+    const companyId = req.body.companyId || req.user?.companyId;
+    const userId = req.user?.userId;
     const updateData = req.body;
 
-    let settings = await SupportSettings.findOne({ companyId });
-    
-    if (!settings) {
-      settings = new SupportSettings({
-        companyId,
-        createdBy: userId
+    if (!companyId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Company ID is required'
       });
     }
 
-    // Update fields
-    Object.keys(updateData).forEach(key => {
-      if (key !== 'companyId' && key !== '_id' && key !== 'createdAt' && key !== 'updatedAt') {
-        settings[key] = updateData[key];
-      }
+    let settings = await SupportSettings.findOne({ 
+      where: { companyId }
     });
-
-    settings.updatedBy = userId;
-    await settings.save();
-
-    const updatedSettings = await SupportSettings.findOne({ companyId })
-      .populate('createdBy', 'name email')
-      .populate('updatedBy', 'name email')
-      .lean();
+    
+    if (!settings) {
+      settings = await SupportSettings.create({
+        companyId,
+        createdBy: userId,
+        ...updateData
+      });
+    } else {
+      // Update the existing settings
+      const fieldsToUpdate = { ...updateData };
+      delete fieldsToUpdate.companyId; // Don't update companyId
+      fieldsToUpdate.updatedBy = userId;
+      
+      await settings.update(fieldsToUpdate);
+      await settings.reload(); // Reload to get updated data
+    }
 
     res.json({
       success: true,
       message: 'Support settings updated successfully',
-      data: updatedSettings
+      data: settings
     });
   } catch (error) {
     logger.error('Error updating support settings:', error);
@@ -85,13 +95,20 @@ const updateSupportSettings = async (req, res) => {
 // Test email configuration
 const testEmail = async (req, res) => {
   try {
-    const { email } = req.body;
-    const { companyId } = req.user;
+    const { email, companyId: bodyCompanyId } = req.body;
+    const companyId = bodyCompanyId || req.user?.companyId;
 
     if (!email) {
       return res.status(400).json({
         success: false,
         message: 'Email address is required'
+      });
+    }
+
+    if (!companyId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Company ID is required'
       });
     }
 
@@ -121,13 +138,20 @@ const testEmail = async (req, res) => {
 // Test phone configuration
 const testPhone = async (req, res) => {
   try {
-    const { phone } = req.body;
-    const { companyId } = req.user;
+    const { phone, companyId: bodyCompanyId } = req.body;
+    const companyId = bodyCompanyId || req.user?.companyId;
 
     if (!phone) {
       return res.status(400).json({
         success: false,
         message: 'Phone number is required'
+      });
+    }
+
+    if (!companyId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Company ID is required'
       });
     }
 
@@ -157,13 +181,20 @@ const testPhone = async (req, res) => {
 // Test Slack webhook
 const testSlack = async (req, res) => {
   try {
-    const { webhookUrl, channel } = req.body;
-    const { companyId } = req.user;
+    const { webhookUrl, channel, companyId: bodyCompanyId } = req.body;
+    const companyId = bodyCompanyId || req.user?.companyId;
 
     if (!webhookUrl) {
       return res.status(400).json({
         success: false,
         message: 'Webhook URL is required'
+      });
+    }
+
+    if (!companyId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Company ID is required'
       });
     }
 
@@ -194,24 +225,38 @@ const testSlack = async (req, res) => {
 // Get business hours status
 const getBusinessHoursStatus = async (req, res) => {
   try {
-    const { companyId } = req.user;
+    const companyId = parseInt(req.query.companyId) || req.user?.companyId;
 
-    const settings = await SupportSettings.findOne({ companyId }).lean();
-    
-    if (!settings) {
-      return res.status(404).json({
+    if (!companyId) {
+      return res.status(400).json({
         success: false,
-        message: 'Support settings not found'
+        message: 'Company ID is required'
+      });
+    }
+
+    logger.info(`Fetching business hours status for company ID: ${companyId}`);
+
+    let settings = await SupportSettings.findOne({ 
+      where: { companyId: companyId }
+    });
+    
+    // If no settings exist, create default settings first
+    if (!settings) {
+      logger.info(`No settings found for company ${companyId}, creating default settings for business hours`);
+      
+      settings = await SupportSettings.create({
+        companyId: companyId,
+        createdBy: req.user?.userId || null
       });
     }
 
     // Calculate if currently within business hours
     const now = new Date();
-    const currentDay = now.toLocaleLowerCase().slice(0, 3);
+    const currentDay = now.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
     const currentTime = now.toTimeString().slice(0, 5);
     
     // Check if businessHours exists and has the current day
-    const businessHours = settings.businessHours?.[currentDay];
+    const businessHours = settings.businessHours?.schedule?.[currentDay];
     const isOpen = businessHours?.enabled && 
                    currentTime >= businessHours.start && 
                    currentTime <= businessHours.end;
@@ -223,7 +268,7 @@ const getBusinessHoursStatus = async (req, res) => {
         currentDay,
         currentTime,
         businessHours: settings.businessHours,
-        timezone: settings.timezone
+        timezone: settings.businessHours?.timezone || 'UTC'
       }
     });
   } catch (error) {
@@ -238,108 +283,47 @@ const getBusinessHoursStatus = async (req, res) => {
 // Reset settings to default
 const resetToDefault = async (req, res) => {
   try {
-    const { companyId, userId } = req.user;
+    const companyId = req.body.companyId || req.user?.companyId;
+    const userId = req.user?.userId;
 
-    const defaultSettings = {
-      phone: {
-        enabled: true,
-        number: '',
-        hours: 'Monday to Friday, 9 AM to 6 PM',
-        timezone: 'UTC',
-        extension: ''
-      },
-      email: {
-        enabled: true,
-        address: '',
-        responseTime: 'Within 24 hours',
-        autoReply: true,
-        autoReplyMessage: 'Thank you for contacting us. We will get back to you within 24 hours.',
-        smtp: {
-          host: '',
-          port: 587,
-          secure: false,
-          username: '',
-          password: ''
-        }
-      },
-      chat: {
-        enabled: true,
-        hours: 'Monday to Friday, 9 AM to 6 PM',
-        welcomeMessage: 'Hello! How can I help you today?',
-        offlineMessage: 'We are currently offline. Please leave a message and we will get back to you.',
-        autoAssign: true,
-        maxWaitTime: 300
-      },
-      social: {
-        whatsapp: {
-          enabled: false,
-          number: '',
-          businessHours: ''
-        },
-        telegram: {
-          enabled: false,
-          username: '',
-          botToken: ''
-        },
-        facebook: {
-          enabled: false,
-          pageId: '',
-          accessToken: ''
-        }
-      },
-      escalation: {
-        enabled: false,
-        rules: []
-      },
-      notifications: {
-        email: {
-          enabled: true,
-          recipients: []
-        },
-        slack: {
-          enabled: false,
-          webhookUrl: '',
-          channel: ''
-        }
-      },
-      businessHours: {
-        monday: { enabled: true, start: '09:00', end: '17:00' },
-        tuesday: { enabled: true, start: '09:00', end: '17:00' },
-        wednesday: { enabled: true, start: '09:00', end: '17:00' },
-        thursday: { enabled: true, start: '09:00', end: '17:00' },
-        friday: { enabled: true, start: '09:00', end: '17:00' },
-        saturday: { enabled: false, start: '09:00', end: '17:00' },
-        sunday: { enabled: false, start: '09:00', end: '17:00' }
-      },
-      timezone: 'UTC'
-    };
-
-    let settings = await SupportSettings.findOne({ companyId });
-    
-    if (!settings) {
-      settings = new SupportSettings({
-        companyId,
-        createdBy: userId
+    if (!companyId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Company ID is required'
       });
     }
 
-    // Reset to default values
-    Object.keys(defaultSettings).forEach(key => {
-      settings[key] = defaultSettings[key];
+    let settings = await SupportSettings.findOne({ 
+      where: { companyId }
     });
-
-    settings.updatedBy = userId;
-    await settings.save();
-
-    const resetSettings = await SupportSettings.findOne({ companyId })
-      .populate('createdBy', 'name email')
-      .populate('updatedBy', 'name email')
-      .lean();
+    
+    if (!settings) {
+      settings = await SupportSettings.create({
+        companyId,
+        createdBy: userId
+      });
+    } else {
+      // Reset to default values by updating with default values
+      await settings.update({
+        widgetSettings: settings.constructor.rawAttributes.widgetSettings.defaultValue,
+        businessHours: settings.constructor.rawAttributes.businessHours.defaultValue,
+        autoResponse: settings.constructor.rawAttributes.autoResponse.defaultValue,
+        notifications: settings.constructor.rawAttributes.notifications.defaultValue,
+        chatSettings: settings.constructor.rawAttributes.chatSettings.defaultValue,
+        integrations: settings.constructor.rawAttributes.integrations.defaultValue,
+        customization: settings.constructor.rawAttributes.customization.defaultValue,
+        security: settings.constructor.rawAttributes.security.defaultValue,
+        analytics: settings.constructor.rawAttributes.analytics.defaultValue,
+        advanced: settings.constructor.rawAttributes.advanced.defaultValue,
+        updatedBy: userId
+      });
+      await settings.reload();
+    }
 
     res.json({
       success: true,
       message: 'Support settings reset to default successfully',
-      data: resetSettings
+      data: settings
     });
   } catch (error) {
     logger.error('Error resetting support settings:', error);

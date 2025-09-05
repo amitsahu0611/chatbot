@@ -10,6 +10,7 @@ import {
   BuildingOfficeIcon
 } from '@heroicons/react/24/outline';
 import api from '../../services/api';
+import { API_URL } from '../../utils/config';
 import { AuthContext } from '../../context/AuthContext';
 import { getValidCompanyId, getCurrentCompanyId } from '../../utils/companyUtils';
 
@@ -246,28 +247,45 @@ const LeadViewer = () => {
 
   const handleExport = async () => {
     try {
-      const response = await api.post('/company-admin/lead-viewer/export', {
+      const companyId = getCurrentCompanyId();
+      const params = new URLSearchParams({
         format: 'csv',
-        filters
+        companyId: companyId,
+        search: filters.search || '',
+        source: filters.source || '',
+        status: filters.status || '',
+        priority: filters.priority || ''
       });
       
+      // Use fetch for file download
+      const response = await fetch(`${API_URL}/api/company-admin/lead-viewer/export?${params}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      // Get the CSV content as text
+      const csvContent = await response.text();
+      
       // Create and download CSV file
-      const csvContent = response.data.data.data.map(row => 
-        Object.values(row).map(value => `"${value}"`).join(',')
-      ).join('\n');
-      
-      const csvHeader = Object.keys(response.data.data.data[0]).join(',') + '\n';
-      const csv = csvHeader + csvContent;
-      
-      const blob = new Blob([csv], { type: 'text/csv' });
+      const blob = new Blob([csvContent], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = response.data.data.filename;
-      a.click();
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `leads_export_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Error exporting leads:', error);
+      alert('Failed to export leads. Please try again.');
     }
   };
 

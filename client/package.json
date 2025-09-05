@@ -23,7 +23,6 @@
     "react-hook-form": "^7.34.2",
     "react-hot-toast": "^2.4.0",
     "react-markdown": "^8.0.5",
-    "react-query": "^3.39.3",
     "react-router-dom": "^6.3.0",
     "react-scripts": "5.0.1",
     "react-select": "^5.2.2",
