@@ -83,8 +83,8 @@ const getWidgetScript = async (req, res) => {
       apiUrl
     });
 
-    // Set appropriate headers for development
-    res.setHeader('Content-Type', 'text/html');
+    // Set appropriate headers for JavaScript
+    res.setHeader('Content-Type', 'application/javascript');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -1703,6 +1703,7 @@ I remember you from our previous conversation. How can I help you today?\`,
 
 })();`;
 }
+
 
 // Routes
 router.get('/script', getWidgetScript);

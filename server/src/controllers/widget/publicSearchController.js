@@ -4,6 +4,7 @@ const FAQ = require('../../models/company-admin/faq-manager/FAQ');
 const UnansweredQuery = require('../../models/company-admin/faq-manager/UnansweredQuery');
 const ChatMessage = require('../../models/widget/ChatMessage');
 const Lead = require('../../models/company-admin/lead-viewer/Lead');
+const Company = require('../../models/Company');
 const logger = require('../../utils/logger');
 
 /**
@@ -186,9 +187,34 @@ const searchFAQs = async (query, companyId, limit) => {
 };
 
 /**
+ * Generate enhanced fallback response with company-specific suggestions
+ */
+const generateEnhancedFallbackResponse = async (query, companyId, searchTerm = null) => {
+  try {
+    // Get company information
+    const company = await Company.findByPk(companyId, {
+      attributes: ['name', 'domain', 'email']
+    });
+
+    const companyName = company ? company.name : 'our company';
+    const searchTermText = searchTerm || query;
+
+    // Create enhanced fallback message
+    const fallbackMessage = `I don't have specific information about "${searchTermText}." Please contact our support team for detailed information.\n\nHowever, I can help you with questions about ${companyName} and services related to our company. Feel free to ask me about:\n• Our services and offerings\n• Business hours\n• Contact information\n• General company information`;
+
+    return fallbackMessage;
+  } catch (error) {
+    logger.error('Error generating enhanced fallback response:', error);
+    // Return basic fallback if company lookup fails
+    const searchTermText = searchTerm || query;
+    return `I don't have specific information about "${searchTermText}." Please contact our support team for detailed information.`;
+  }
+};
+
+/**
  * Generate AI response using OpenAI with intelligent FAQ matching
  */
-const generateAIResponse = async (query, faqs) => {
+const generateAIResponse = async (query, faqs, companyId = null, companyInfo = null, supportSettings = null) => {
   try {
     const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
     
@@ -202,7 +228,7 @@ const generateAIResponse = async (query, faqs) => {
     // Check if OpenAI API key is configured
     if (!OPENAI_API_KEY || OPENAI_API_KEY === "your-openai-api-key-here" || OPENAI_API_KEY === "your-openai-api-key" || OPENAI_API_KEY.length < 20) {
       logger.info("⚠️ OpenAI API key not configured, using intelligent fallback response");
-      return generateFallbackResponse(query, faqs);
+      return await generateFallbackResponse(query, faqs, companyId);
     }
 
     const OpenAI = require('openai');
@@ -219,37 +245,62 @@ Category: ${faq.category}`
     ).join('\n\n');
 
     const systemPrompt = `
-    You are a customer support assistant for this specific company. 
+    You are a customer support assistant with access to the COMPLETE FAQ knowledge base for this company.
     
     CRITICAL RULES:
-    1. ONLY answer based on the provided FAQ information - do not make up services or information
-    2. If the user asks about services and there are no relevant FAQs, say "I don't have specific information about our services in my knowledge base"
-    3. DO NOT assume what services the company offers unless explicitly mentioned in the FAQs
-    4. Be honest about limitations - if you don't have the information, say so
-    5. Only mention services that are actually described in the provided FAQs
-    6. If asked about general questions not covered in FAQs, politely redirect to contact support
+    1. You have access to ALL company FAQs - analyze them thoroughly to find the best answer
+    2. Process the ENTIRE knowledge base to provide the most accurate response
+    3. LIMIT your response to MAXIMUM 50 words - be concise and direct
+    4. If multiple FAQs are relevant, synthesize the best answer from them
+    5. Only answer based on the provided FAQ information - never make up information
+    6. If no FAQ covers the question, say you don't have that information and suggest contacting support
     
     Response Guidelines:
-    - Answer only what you know from the FAQs provided
-    - Don't invent or assume services not mentioned
-    - Be specific and accurate to the company's actual offerings
-    - If no relevant FAQ exists, admit you don't have that information
+    - Maximum 50 words only
+    - Search through ALL provided FAQs for the best answer
+    - Be precise and helpful
+    - If no relevant information exists in any FAQ, be honest about it
     `;
     
+
+    // Prepare support information context
+    const supportInfo = companyInfo ? {
+      companyName: companyInfo.name,
+      email: companyInfo.email,
+      phone: companyInfo.phone,
+      website: companyInfo.domain,
+      welcomeMessage: supportSettings?.widgetSettings?.welcomeMessage,
+      offlineMessage: supportSettings?.autoResponse?.offlineMessage,
+      brandName: supportSettings?.customization?.brandName || companyInfo.name
+    } : null;
 
     const userPrompt = (query, faqs) => `
     User Question: "${query}"
     
-    Company's FAQ Knowledge Base:
-    ${faqs.length > 0 ? faqs.map((f,i)=>`Q${i+1}: ${f.question}\nA: ${f.answer}`).join("\n\n") : "No relevant FAQs found for this query."}
+    COMPLETE Company FAQ Knowledge Base (${faqs.length} FAQs):
+    ${faqs.length > 0 ? faqs.map((f,i)=>`FAQ-${i+1}: 
+Q: ${f.question}
+A: ${f.answer}
+Category: ${f.category || 'General'}`).join("\n\n") : "No FAQs found for this company."}
+    
+    ${supportInfo ? `
+    COMPANY SUPPORT INFORMATION:
+    Company Name: ${supportInfo.companyName}
+    Email: ${supportInfo.email}
+    Phone: ${supportInfo.phone || 'Not provided'}
+    Website: ${supportInfo.website || 'Not provided'}
+    Brand Name: ${supportInfo.brandName}
+    Welcome Message: ${supportInfo.welcomeMessage || 'Hello! How can I help you today?'}
+    ` : ''}
     
     Instructions:
-    - If the question directly matches an FAQ, provide that information naturally
-    - If asking about services and NO service-related FAQs exist, say "I don't have specific information about our services. Please contact our support team for detailed service information."
-    - DO NOT make assumptions about what services might be offered
-    - Only reference information that exists in the FAQs above
-    - If no relevant FAQ exists, be honest and suggest contacting support
-    - Be helpful but accurate - don't invent information
+    - Analyze ALL ${faqs.length} FAQs above to find the best answer
+    - Process the complete knowledge base thoroughly
+    - MAXIMUM 50 words in your response
+    - If multiple FAQs relate to the question, combine insights for the best answer
+    - If no FAQ covers the question, provide the company's support contact information
+    - Include contact details (email/phone) when no specific answer is found
+    - Be concise, accurate, and helpful
     `;
     
 
@@ -260,20 +311,20 @@ Category: ${faq.category}`
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt(query, faqs) }
       ],
-      max_tokens: parseInt(process.env.OPENAI_MAX_TOKENS) || 800,
-      temperature: 0.7,
+      max_tokens: 75, // Strict limit for ~50 words
+      temperature: 0.3, // Lower temperature for more focused responses
     });
 
     return chatCompletion.choices[0].message.content.trim();
   } catch (error) {
     logger.error('OpenAI API error:', error);
     logger.info("🔄 Falling back to intelligent response system");
-    return generateFallbackResponse(query, faqs);
+    return await generateFallbackResponse(query, faqs, companyId);
   }
 };
 
 // Intelligent fallback response system
-const generateFallbackResponse = (query, faqs) => {
+const generateFallbackResponse = async (query, faqs, companyId = null) => {
   const queryLower = query.toLowerCase();
   
   // If we have relevant FAQs, use them to generate a response
@@ -284,6 +335,9 @@ const generateFallbackResponse = (query, faqs) => {
   
   // Handle common questions with predefined responses
   if (queryLower.includes('service') || queryLower.includes('offer')) {
+    if (companyId) {
+      return await generateEnhancedFallbackResponse(query, companyId, "our services");
+    }
     return "I don't have specific information about our services in my current knowledge base. For detailed information about what services we offer, please contact our support team directly. They'll be happy to provide you with comprehensive details about our offerings!";
   }
   
@@ -299,7 +353,11 @@ const generateFallbackResponse = (query, faqs) => {
     return "Our business hours are typically Monday through Friday, 9 AM to 6 PM. However, specific hours may vary by department. For the most accurate information, please check our website or contact us directly. We're here to help whenever you need us!";
   }
   
-  // Default response
+  // Default response with enhanced fallback
+  if (companyId) {
+    return await generateEnhancedFallbackResponse(query, companyId);
+  }
+  
   return "Thank you for your question! I'm here to help, but I might need to connect you with our support team for the most accurate and up-to-date information. They'll be happy to assist you with any specific questions you have. Is there anything else I can help you with?";
 };
 
@@ -419,35 +477,70 @@ const publicAiSearch = async (req, res) => {
       // Don't fail the request if storage fails
     }
 
-    // Get FAQs for AI analysis using enhanced search
-    let relevantFAQs = [];
+    // Get ALL FAQs and support information for AI analysis (complete company knowledge base)
+    let allCompanyFAQs = [];
+    let companyInfo = null;
+    let supportSettings = null;
     
     try {
-      // Use enhanced search function
-      relevantFAQs = await searchFAQs(query, companyId, limit);
+      // Fetch ALL active FAQs for this company
+      allCompanyFAQs = await FAQ.findAll({
+        where: {
+          companyId: parseInt(companyId),
+          isActive: true
+        },
+        attributes: ['id', 'question', 'answer', 'category', 'tags', 'views', 'helpfulCount'],
+        order: [
+          ['helpfulCount', 'DESC'],
+          ['views', 'DESC'],
+          ['createdAt', 'DESC']
+        ]
+      });
       
-      console.log(`📚 Sending ${relevantFAQs.length} FAQs to AI for intelligent analysis for company ${companyId}`);
+      console.log(`📚 Sending ALL ${allCompanyFAQs.length} FAQs to AI for complete knowledge analysis for company ${companyId}`);
       
-      // Log the FAQs being sent to verify they're company-specific
-      if (relevantFAQs.length > 0) {
-        console.log('📋 FAQs being sent to AI:');
-        relevantFAQs.forEach((faq, index) => {
-          console.log(`  ${index + 1}. ID: ${faq.id}, Company: ${faq.companyId}, Question: "${faq.question}"`);
-        });
+      // Log the total count
+      if (allCompanyFAQs.length > 0) {
+        console.log(`📋 Complete FAQ Knowledge Base: ${allCompanyFAQs.length} FAQs from company ${companyId}`);
+        console.log(`🔍 User Query: "${query}"`);
       }
     } catch (searchError) {
-      logger.error('Error searching FAQs:', searchError);
+      logger.error('Error fetching all company FAQs:', searchError);
       // Continue with empty FAQs array - AI will handle it
+    }
+
+    // Fetch company information and support settings for fallback contact info
+    try {
+      const Company = require('../../models/Company');
+      const SupportSettings = require('../../models/company-admin/support-settings/SupportSettings');
+      
+      // Get company basic info
+      companyInfo = await Company.findOne({
+        where: { id: parseInt(companyId) },
+        attributes: ['id', 'name', 'email', 'phone', 'domain']
+      });
+      
+      // Get support settings for additional contact info
+      supportSettings = await SupportSettings.findOne({
+        where: { companyId: parseInt(companyId) },
+        attributes: ['widgetSettings', 'autoResponse', 'customization']
+      });
+      
+      console.log(`📞 Fetched support information for company: ${companyInfo?.name || 'Unknown'}`);
+      
+    } catch (infoError) {
+      logger.error('Error fetching company support information:', infoError);
+      // Continue without support info - AI will use generic fallback
     }
 
     // Generate AI response
     let aiResponse;
     let isUnanswered = false;
     try {
-      aiResponse = await generateAIResponse(query, relevantFAQs);
+      aiResponse = await generateAIResponse(query, allCompanyFAQs, companyId, companyInfo, supportSettings);
       
       // Check if the response indicates lack of knowledge
-      if (isLowQualityResponse(aiResponse, relevantFAQs)) {
+      if (isLowQualityResponse(aiResponse, allCompanyFAQs)) {
         isUnanswered = true;
         logger.info(`🔍 Low quality response detected for query: "${query}"`);
       }
@@ -478,9 +571,10 @@ const publicAiSearch = async (req, res) => {
         content: aiResponse,
         timestamp: new Date(),
         metadata: {
-          source: relevantFAQs.length > 0 ? 'ai' : 'fallback',
-          confidence: relevantFAQs.length > 0 ? 0.8 : 0.3,
-          relatedFAQs: relevantFAQs.map(faq => ({
+          source: allCompanyFAQs.length > 0 ? 'ai' : 'fallback',
+          confidence: allCompanyFAQs.length > 0 ? 0.8 : 0.3,
+          totalFAQsProcessed: allCompanyFAQs.length,
+          relatedFAQs: allCompanyFAQs.slice(0, 5).map(faq => ({
             id: faq.id,
             question: faq.question,
             category: faq.category
@@ -497,9 +591,10 @@ const publicAiSearch = async (req, res) => {
       success: true,
       data: {
         answer: aiResponse,
-        source: relevantFAQs.length > 0 ? 'ai' : 'fallback',
-        confidence: relevantFAQs.length > 0 ? 0.8 : 0.3,
-        relatedFAQs: relevantFAQs.map(faq => ({
+        source: allCompanyFAQs.length > 0 ? 'ai' : 'fallback',
+        confidence: allCompanyFAQs.length > 0 ? 0.8 : 0.3,
+        totalFAQsProcessed: allCompanyFAQs.length,
+        topFAQs: allCompanyFAQs.slice(0, 5).map(faq => ({
           id: faq.id,
           question: faq.question,
           category: faq.category,
