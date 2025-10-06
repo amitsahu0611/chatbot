@@ -1,5 +1,6 @@
 const User = require('./User');
 const Company = require('./Company');
+const Product = require('./Product');
 const FAQ = require('./company-admin/faq-manager/FAQ');
 const UnansweredQuery = require('./company-admin/faq-manager/UnansweredQuery');
 const SupportSettings = require('./company-admin/support-settings/SupportSettings');
@@ -171,6 +172,7 @@ VisitorSession.belongsTo(Company, {
 module.exports = {
   User,
   Company,
+  Product,
   FAQ,
   UnansweredQuery,
   SupportSettings,

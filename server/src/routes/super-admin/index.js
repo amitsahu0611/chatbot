@@ -11,11 +11,15 @@ const {
 const companiesRoutes = require('./companies');
 const usersRoutes = require('./users');
 const formsRoutes = require('./forms');
+const productsRoutes = require('./products');
+const productSearchRoutes = require('./product-search');
 
 // Mount sub-routes
 router.use('/companies', companiesRoutes);
 router.use('/users', usersRoutes);
 router.use('/forms', formsRoutes);
+router.use('/products', productsRoutes);
+router.use('/product-search', productSearchRoutes);
 
 // Super admin dashboard routes
 router.get('/dashboard/stats', auth, getDashboardStats);

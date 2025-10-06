@@ -13,6 +13,8 @@ import CompanyAdminLayout from './components/company-admin/CompanyAdminLayout';
 import SuperAdminDashboard from './pages/super-admin/Dashboard';
 import CompaniesManagement from './pages/super-admin/CompaniesManagement';
 import UsersManagement from './pages/super-admin/UsersManagement';
+import ProductsManagement from './pages/super-admin/ProductsManagement';
+import ProductSearch from './pages/super-admin/ProductSearch';
 import CompanySelection from './pages/super-admin/CompanySelection';
 
 // Company Admin Pages
@@ -74,6 +76,8 @@ function AppRoutes() {
             <Route path="dashboard" element={<SuperAdminDashboard />} />
             <Route path="companies" element={<CompaniesManagement />} />
             <Route path="users" element={<UsersManagement />} />
+            <Route path="products" element={<ProductsManagement />} />
+            <Route path="product-search" element={<ProductSearch />} />
             <Route path="analytics" element={<Analytics />} />
             <Route path="settings" element={<div className="p-8"><h1 className="text-2xl font-bold">Super Admin Settings</h1><p className="mt-4 text-gray-600">Settings page coming soon...</p></div>} />
           </Route>

@@ -11,6 +11,8 @@ import {
   ArrowLeftOnRectangleIcon,
   Bars3Icon,
   XMarkIcon,
+  ShoppingBagIcon,
+  MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
 
 const SuperAdminLayout = () => {
@@ -27,6 +29,8 @@ const SuperAdminLayout = () => {
     { name: 'Dashboard', href: '/super-admin/dashboard', icon: HomeIcon },
     { name: 'Companies', href: '/super-admin/companies', icon: BuildingOffice2Icon },
     { name: 'Users', href: '/super-admin/users', icon: UsersIcon },
+    { name: 'Products', href: '/super-admin/products', icon: ShoppingBagIcon },
+    { name: 'Product Search', href: '/super-admin/product-search', icon: MagnifyingGlassIcon },
     // { name: 'Analytics', href: '/super-admin/analytics', icon: ChartBarIcon },
     // { name: 'Settings', href: '/super-admin/settings', icon: Cog6ToothIcon },
   ];

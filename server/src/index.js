@@ -15,6 +15,7 @@ require("express-async-errors");
 require("dotenv").config({path: "./config.env"});
 
 const {connectDB} = require("./config/database");
+const {initializeMeiliSearch} = require("./config/meilisearch");
 const logger = require("./utils/logger");
 const errorHandler = require("./middleware/errorHandler");
 const notFound = require("./middleware/notFound");
@@ -35,6 +36,12 @@ app.set("trust proxy", 1);
 
 // Connect to database
 connectDB();
+
+// Initialize MeiliSearch
+initializeMeiliSearch().catch(error => {
+  logger.error('Failed to initialize MeiliSearch:', error);
+  // Don't exit the process, just log the error
+});
 
 // Import models to ensure they are registered
 require("./models");
